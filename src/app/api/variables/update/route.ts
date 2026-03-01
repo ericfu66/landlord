@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getUserById } from '@/lib/auth/session'
+import { getUserById } from '@/lib/auth/repo'
 import { getDb, saveDb } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
 import { pickLastThreeRounds, updateCharacterVariables, getChatMessagesForUpdate } from '@/lib/services/variables-service'

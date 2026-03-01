@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getUserById } from '@/lib/auth/session'
 import { getAllUsers, banUser, unbanUser } from '@/lib/services/admin-service'
 
 export async function GET() {

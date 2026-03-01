@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { fetchModels } from '@/lib/ai/models'
-import { getUserById } from '@/lib/auth/session'
+import { getUserById } from '@/lib/auth/repo'
 import { getDb, saveDb } from '@/lib/db'
 
 export async function GET(request: NextRequest) {

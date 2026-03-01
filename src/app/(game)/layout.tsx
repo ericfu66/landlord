@@ -28,9 +28,10 @@ export default function GameLayout({ children }: { children: ReactNode }) {
         <div className="fixed top-4 right-4 z-50">
           <Link
             href="/game/settings"
-            className="glass-card px-3 py-2 text-sm hover:bg-white/20 transition-colors"
+            className="glass-card px-4 py-2 text-sm hover:bg-amber-500/20 transition-all duration-300 group"
           >
-            ⚙️ 设置
+            <span className="group-hover:rotate-90 transition-transform duration-300 inline-block">⚙️</span>
+            <span className="ml-1">设置</span>
           </Link>
         </div>
         

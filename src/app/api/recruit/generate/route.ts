@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getUserById } from '@/lib/auth/session'
+import { getUserById } from '@/lib/auth/repo'
 import { getDb } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
 import { CHARACTER_TEMPLATE_PROMPT, GENERATE_CHARACTER_TOOL } from '@/prompts/character-template'

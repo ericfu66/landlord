@@ -9,6 +9,27 @@ export interface User {
   api_config: string | null
 }
 
+export async function getUserById(userId: number): Promise<User | null> {
+  const db = await getDb()
+  const result = db.exec(
+    'SELECT id, username, role, is_banned, api_config FROM users WHERE id = ?',
+    [userId]
+  )
+  
+  if (result.length === 0 || result[0].values.length === 0) {
+    return null
+  }
+  
+  const row = result[0].values[0]
+  return {
+    id: row[0] as number,
+    username: row[1] as string,
+    role: row[2] as string,
+    is_banned: row[3] === 1,
+    api_config: row[4] as string | null
+  }
+}
+
 export async function createUser(username: string, password: string): Promise<User | null> {
   const db = await getDb()
   

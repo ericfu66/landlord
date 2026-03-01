@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getUserById } from '@/lib/auth/session'
+import { getUserById } from '@/lib/auth/repo'
 import { getDb, saveDb } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
 import { composeMessages, canUseFlirtMode } from '@/lib/services/preset-service'
@@ -30,7 +30,7 @@ async function getCharacterData(characterName: string) {
   }
 }
 
-async function getChatHistory(characterName: string, limit: number = 10) {
+async function getChatHistory(characterName: string, limit: number = 10): Promise<string> {
   const db = await getDb()
   const result = db.exec(
     `SELECT role, content FROM chat_messages 
@@ -40,11 +40,11 @@ async function getChatHistory(characterName: string, limit: number = 10) {
   )
 
   if (result.length === 0) {
-    return []
+    return ''
   }
 
   return result[0].values
-    .map((row) => `${row[0] === 'user' ? '用户' : '角色'}: ${row[1]}`)
+    .map((row: unknown[]) => `${row[0] === 'user' ? '用户' : '角色'}: ${row[1]}`)
     .reverse()
     .join('\n')
 }

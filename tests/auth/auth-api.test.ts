@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { getDb, runMigrations, saveDb } from '@/lib/db'
 import { hashPassword } from '@/lib/security/password'
 import { authenticateUser, createUser } from '@/lib/auth/repo'
@@ -6,6 +6,12 @@ import { authenticateUser, createUser } from '@/lib/auth/repo'
 describe('auth api', () => {
   beforeAll(async () => {
     await runMigrations()
+  })
+
+  beforeEach(async () => {
+    const db = await getDb()
+    db.run("DELETE FROM users WHERE username != 'ericfu'")
+    saveDb()
   })
 
   it('rejects banned users at login', async () => {
@@ -27,34 +33,34 @@ describe('auth api', () => {
   })
 
   it('creates new user successfully', async () => {
-    const user = await createUser('newuser', 'password123')
+    const user = await createUser('newuser_test', 'password123')
     
     expect(user).not.toBeNull()
-    expect(user?.username).toBe('newuser')
+    expect(user?.username).toBe('newuser_test')
     expect(user?.role).toBe('user')
     expect(user?.is_banned).toBe(false)
   })
 
   it('rejects duplicate username', async () => {
-    await createUser('duplicateuser', 'password123')
-    const user = await createUser('duplicateuser', 'password456')
+    await createUser('duplicateuser_test', 'password123')
+    const user = await createUser('duplicateuser_test', 'password456')
     
     expect(user).toBeNull()
   })
 
   it('authenticates valid user', async () => {
-    await createUser('validuser', 'correctpass')
-    const result = await authenticateUser('validuser', 'correctpass')
+    await createUser('validuser_test', 'correctpass')
+    const result = await authenticateUser('validuser_test', 'correctpass')
     
     expect('error' in result).toBe(false)
     if (!('error' in result)) {
-      expect(result.username).toBe('validuser')
+      expect(result.username).toBe('validuser_test')
     }
   })
 
   it('rejects wrong password', async () => {
-    await createUser('wrongpassuser', 'correctpass')
-    const result = await authenticateUser('wrongpassuser', 'wrongpass')
+    await createUser('wrongpassuser_test', 'correctpass')
+    const result = await authenticateUser('wrongpassuser_test', 'wrongpass')
     
     expect('error' in result).toBe(true)
   })

@@ -1,6 +1,6 @@
 import { getDb, saveDb } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
-import { getUserById } from '@/lib/auth/session'
+import { getUserById } from '@/lib/auth/repo'
 import { incrementApiCalls } from '@/lib/auth/repo'
 
 export interface Job {
