@@ -1,5 +1,10 @@
 import { getDb, saveDb } from '@/lib/db'
 
+// 转义 SQL 字符串
+function escapeSql(str: string): string {
+  return str.replace(/'/g, "''")
+}
+
 export interface VariableUpdate {
   characterName: string
   favorabilityDelta: number
@@ -36,11 +41,10 @@ export async function updateCharacterVariables(
   const db = await getDb()
   
   const result = db.exec(
-    'SELECT favorability, obedience, corruption FROM characters WHERE name = ?',
-    [characterName]
+    `SELECT favorability, obedience, corruption FROM characters WHERE name = '${escapeSql(characterName)}'`
   )
   
-  if (result.length === 0 || result[0].values.length === 0) {
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return false
   }
   
@@ -58,8 +62,7 @@ export async function updateCharacterVariables(
   const newCorrupt = clampValue(currentCorrupt + clampedCorruptDelta)
   
   db.run(
-    'UPDATE characters SET favorability = ?, obedience = ?, corruption = ?, mood = ? WHERE name = ?',
-    [newFav, newObey, newCorrupt, updates.mood, characterName]
+    `UPDATE characters SET favorability = ${newFav}, obedience = ${newObey}, corruption = ${newCorrupt}, mood = '${escapeSql(updates.mood)}' WHERE name = '${escapeSql(characterName)}'`
   )
   saveDb()
   
@@ -70,17 +73,16 @@ export async function getChatMessagesForUpdate(characterName: string): Promise<C
   const db = await getDb()
   const result = db.exec(
     `SELECT role, content FROM chat_messages 
-     WHERE character_name = ? 
-     ORDER BY created_at DESC LIMIT 6`,
-    [characterName]
+     WHERE character_name = '${escapeSql(characterName)}' 
+     ORDER BY created_at DESC LIMIT 6`
   )
   
-  if (result.length === 0) {
+  if (!result || result.length === 0 || !result[0].values) {
     return []
   }
   
   return result[0].values
-    .map((row) => ({
+    .map((row: unknown[]) => ({
       role: row[0] as 'user' | 'assistant',
       content: row[1] as string
     }))
@@ -101,11 +103,10 @@ export interface VariableDisplayData {
 export async function getCharacterVariables(characterName: string): Promise<VariableDisplayData | null> {
   const db = await getDb()
   const result = db.exec(
-    'SELECT favorability, obedience, corruption, mood FROM characters WHERE name = ?',
-    [characterName]
+    `SELECT favorability, obedience, corruption, mood FROM characters WHERE name = '${escapeSql(characterName)}'`
   )
   
-  if (result.length === 0 || result[0].values.length === 0) {
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return null
   }
   

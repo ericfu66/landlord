@@ -1,13 +1,14 @@
 export interface Room {
   id: number
-  saveId: number
+  userId: number
   floor: number
   positionStart: number
   positionEnd: number
-  roomType: 'empty' | 'bedroom' | 'functional'
+  roomType: 'empty' | 'bedroom' | 'functional' | 'kitchen' | 'bathroom'
   description?: string
   characterName?: string
   isOutdoor: boolean
+  name?: string
 }
 
 export interface RoomPlacement {
@@ -26,6 +27,8 @@ export const BUILD_COSTS: Record<string, BuildCost> = {
   emptyRoom: { currency: 0, energy: 0 },
   bedroom: { currency: 300, energy: 1 },
   functional: { currency: 400, energy: 1 },
+  kitchen: { currency: 350, energy: 1 },
+  bathroom: { currency: 450, energy: 1 },
   demolish: { currency: 0, energy: 0 }
 }
 

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
+import { getUserById } from '@/lib/auth/repo'
 import { 
-  getSavesByUser, 
-  createSave, 
-  updateSave, 
-  deleteSave, 
-  loadSave,
-  canCreateSave 
+  collectGameData, 
+  saveGameData, 
+  exportGameData, 
+  importGameData, 
+  resetGameData,
+  getCurrentGameState 
 } from '@/lib/services/save-service'
 
 export async function GET() {
@@ -16,13 +17,15 @@ export async function GET() {
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const saves = await getSavesByUser(session.userId)
-    const canCreate = await canCreateSave(session.userId)
+    const currentState = await getCurrentGameState(session.userId)
 
-    return NextResponse.json({ saves, canCreate })
+    return NextResponse.json({ 
+      currentState,
+      message: '游戏数据已存储在用户账户中，无需单独存档'
+    })
   } catch (error) {
     console.error('Get saves error:', error)
-    return NextResponse.json({ error: '获取存档失败' }, { status: 500 })
+    return NextResponse.json({ error: '获取游戏数据失败' }, { status: 500 })
   }
 }
 
@@ -34,64 +37,67 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { action, saveId, saveName, gameData } = body
+    const { action } = body
 
     switch (action) {
-      case 'create': {
-        if (!saveName || !gameData) {
-          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
-        }
-
-        const canCreate = await canCreateSave(session.userId)
-        if (!canCreate) {
-          return NextResponse.json({ error: '存档槽已满（最多5个）' }, { status: 400 })
-        }
-
-        const save = await createSave(session.userId, saveName, gameData)
-        if (!save) {
-          return NextResponse.json({ error: '创建存档失败' }, { status: 500 })
-        }
-
-        return NextResponse.json({ save })
-      }
-
-      case 'update': {
-        if (!saveId || !gameData) {
-          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
-        }
-
-        const success = await updateSave(saveId, session.userId, gameData)
+      case 'save': {
+        // 保存当前游戏数据
+        const gameData = await collectGameData(session.userId)
+        const success = await saveGameData(session.userId, gameData)
+        
         if (!success) {
-          return NextResponse.json({ error: '更新存档失败' }, { status: 400 })
+          return NextResponse.json({ error: '保存失败' }, { status: 500 })
         }
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ 
+          success: true,
+          message: '游戏已保存'
+        })
       }
 
-      case 'load': {
-        if (!saveId) {
-          return NextResponse.json({ error: '缺少存档ID' }, { status: 400 })
-        }
-
-        const data = await loadSave(saveId, session.userId)
+      case 'export': {
+        // 导出游戏数据为 JSON
+        const data = await exportGameData(session.userId)
         if (!data) {
-          return NextResponse.json({ error: '加载存档失败' }, { status: 400 })
+          return NextResponse.json({ error: '导出失败' }, { status: 500 })
         }
 
-        return NextResponse.json({ gameData: data })
+        return NextResponse.json({ 
+          success: true,
+          data,
+          message: '游戏数据导出成功'
+        })
       }
 
-      case 'delete': {
-        if (!saveId) {
-          return NextResponse.json({ error: '缺少存档ID' }, { status: 400 })
+      case 'import': {
+        // 导入游戏数据
+        const { data } = body
+        if (!data) {
+          return NextResponse.json({ error: '缺少导入数据' }, { status: 400 })
         }
 
-        const success = await deleteSave(saveId, session.userId)
+        const success = await importGameData(session.userId, data)
         if (!success) {
-          return NextResponse.json({ error: '删除存档失败' }, { status: 400 })
+          return NextResponse.json({ error: '导入失败' }, { status: 500 })
         }
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ 
+          success: true,
+          message: '游戏数据导入成功'
+        })
+      }
+
+      case 'reset': {
+        // 重置游戏数据
+        const success = await resetGameData(session.userId)
+        if (!success) {
+          return NextResponse.json({ error: '重置失败' }, { status: 500 })
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          message: '游戏数据已重置'
+        })
       }
 
       default:

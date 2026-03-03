@@ -42,9 +42,10 @@ describe('preset compose', () => {
 })
 
 describe('flirt mode unlock', () => {
-  it('unlocks at favorability > 50', () => {
+  it('unlocks at favorability >= 50', () => {
     expect(canUseFlirtMode(51)).toBe(true)
-    expect(canUseFlirtMode(50)).toBe(false)
+    expect(canUseFlirtMode(50)).toBe(true)
+    expect(canUseFlirtMode(49)).toBe(false)
     expect(canUseFlirtMode(0)).toBe(false)
   })
 

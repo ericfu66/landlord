@@ -10,6 +10,21 @@ export async function middleware(request: NextRequest) {
   const isGamePage = pathname.startsWith('/game')
   const isAdminPage = pathname.startsWith('/admin')
   const isApiAuth = pathname.startsWith('/api/auth')
+  const isOnboardingPage = pathname.startsWith('/onboarding')
+  const isLandingPage = pathname === '/'
+  
+  // 从 session 获取 onboarding 状态
+  const needsOnboarding = session?.needsOnboarding ?? false
+  
+  // 如果需要onboarding，强制跳转到onboarding页面（除了onboarding和landing页面）
+  if (session && needsOnboarding && !isOnboardingPage && !isLandingPage && !isApiAuth) {
+    return NextResponse.redirect(new URL('/onboarding?step=character', request.url))
+  }
+  
+  // 如果不需要onboarding，禁止访问onboarding页面
+  if (session && !needsOnboarding && isOnboardingPage) {
+    return NextResponse.redirect(new URL('/game', request.url))
+  }
   
   if (!session && isGamePage) {
     return NextResponse.redirect(new URL('/login', request.url))
@@ -23,7 +38,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/game', request.url))
   }
   
-  if (session && isAuthPage && !isApiAuth) {
+  if (session && isAuthPage && !isApiAuth && !needsOnboarding) {
     return NextResponse.redirect(new URL('/game', request.url))
   }
   
@@ -35,6 +50,8 @@ export const config = {
     '/game/:path*',
     '/admin/:path*',
     '/login',
-    '/register'
+    '/register',
+    '/onboarding/:path*',
+    '/'
   ]
 }

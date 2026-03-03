@@ -3,21 +3,41 @@ import { Preset, PresetEntry, PresetConfig, InteractionMode } from '@/types/pres
 import { generateId } from '@/lib/db'
 import { DEFAULT_PRESETS } from './preset-client'
 
-export { DEFAULT_PRESETS, getInteractionModeInfo, canUseFlirtMode } from './preset-client'
+export { DEFAULT_PRESETS, getInteractionModeInfo, canUseFlirtMode, canUseDateMode } from './preset-client'
 
-export function composeMessages(config: PresetConfig): Array<{ role: string; content: string }> {
+export function composeMessages(
+  config: PresetConfig, 
+  worldviewContent?: string
+): Array<{ role: string; content: string }> {
   const messages: Array<{ role: string; content: string }> = []
 
-  messages.push({ role: 'system', content: config.fixed.persona })
-  messages.push({ role: 'system', content: `记忆：\n${config.fixed.memory}` })
-  messages.push({ role: 'system', content: `聊天记录：\n${config.fixed.history}` })
+  // 1. 世界观背景（最先注入）
+  if (worldviewContent) {
+    messages.push({ 
+      role: 'system', 
+      content: `【世界观背景】\n${worldviewContent}\n\n请在此世界观背景下进行角色扮演。` 
+    })
+  }
 
+  // 2. 核心角色设定（身份声明）
+  messages.push({ role: 'system', content: config.fixed.persona })
+
+  // 3. 角色记忆
+  messages.push({ role: 'system', content: `【你的记忆】\n${config.fixed.memory}` })
+
+  // 4. 预设的示例对话（用于few-shot学习）
   const sortedCustom = [...config.custom].sort((a, b) => a.order - b.order)
   for (const entry of sortedCustom) {
     messages.push({ role: entry.role, content: entry.content })
   }
 
-  messages.push({ role: 'user', content: config.userInput })
+  // 5. 聊天记录（展示之前的对话）
+  if (config.fixed.history && config.fixed.history !== '暂无聊天记录') {
+    messages.push({ role: 'system', content: `【之前的对话记录】\n${config.fixed.history}` })
+  }
+
+  // 6. 用户（房东）的最新输入
+  messages.push({ role: 'user', content: `房东对你说：${config.userInput}` })
 
   return messages
 }
@@ -25,11 +45,10 @@ export function composeMessages(config: PresetConfig): Array<{ role: string; con
 export async function getPreset(userId: number, presetType: InteractionMode): Promise<Preset | null> {
   const db = await getDb()
   const result = db.exec(
-    'SELECT id, user_id, preset_type, preset_data FROM presets WHERE user_id = ? AND preset_type = ?',
-    [userId, presetType]
+    `SELECT id, user_id, preset_type, preset_data FROM presets WHERE user_id = ${userId} AND preset_type = '${presetType}'`
   )
 
-  if (result.length === 0 || result[0].values.length === 0) {
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return null
   }
 
@@ -52,21 +71,22 @@ export async function savePreset(
   const existing = await getPreset(userId, presetType)
   
   if (existing) {
+    const entriesJson = JSON.stringify({ entries }).replace(/'/g, "''")
     db.run(
-      'UPDATE presets SET preset_data = ? WHERE id = ?',
-      [JSON.stringify({ entries }), existing.id]
+      `UPDATE presets SET preset_data = '${entriesJson}' WHERE id = ${existing.id}`
     )
     saveDb()
     return { ...existing, presetData: { entries } }
   }
 
+  const presetDataJson = JSON.stringify({ entries }).replace(/'/g, "''")
   db.run(
-    'INSERT INTO presets (user_id, preset_type, preset_data) VALUES (?, ?, ?)',
-    [userId, presetType, JSON.stringify({ entries })]
+    `INSERT INTO presets (user_id, preset_type, preset_data) VALUES (${userId}, '${presetType}', '${presetDataJson}')`
   )
   saveDb()
 
-  const result = db.exec('SELECT last_insert_rowid()')
+  // Get the ID of the inserted preset
+  const result = db.exec(`SELECT id FROM presets WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)
   const id = result[0].values[0][0] as number
 
   return {

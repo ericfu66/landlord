@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getDb } from '@/lib/db'
-import { getRoomsBySave, createRoom, updateRoomType, deleteRoom, addNewFloor } from '@/lib/services/building-service'
-import { calculateBuildCost } from '@/lib/services/building-service'
+import { getUserById } from '@/lib/auth/repo'
+import { getRoomsByUser, createRoom, updateRoomType, deleteRoom, addNewFloor } from '@/lib/services/building-service'
+import { calculateBuildCost, BUILD_COSTS } from '@/lib/services/building-service'
+import { deductCurrency, getGameState, updateGameState } from '@/lib/services/economy-service'
 
-async function getCurrentSaveId(userId: number): Promise<number | null> {
-  const db = await getDb()
-  const result = db.exec(
-    'SELECT id FROM saves WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1',
-    [userId]
-  )
-  
-  if (result.length === 0 || result[0].values.length === 0) {
-    return null
+// 确保游戏状态存在，如果不存在则创建
+async function ensureGameState(userId: number): Promise<boolean> {
+  const gameState = await getGameState(userId)
+  if (!gameState) {
+    await updateGameState(userId, {
+      currency: 1000,
+      energy: 3,
+      debtDays: 0,
+      totalFloors: 1
+    })
   }
-  
-  return result[0].values[0][0] as number
+  return true
 }
 
 export async function GET() {
@@ -25,15 +26,12 @@ export async function GET() {
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const saveId = await getCurrentSaveId(session.userId)
-    if (!saveId) {
-      return NextResponse.json({ rooms: [], floors: 1 })
-    }
+    const rooms = await getRoomsByUser(session.userId)
+    const gameState = await getGameState(session.userId)
+    const roomMaxFloor = rooms.length > 0 ? Math.max(...rooms.map((r) => r.floor)) : 1
+    const floors = Math.max(roomMaxFloor, gameState?.totalFloors ?? 1)
 
-    const rooms = await getRoomsBySave(saveId)
-    const maxFloor = Math.max(1, ...rooms.map((r) => r.floor))
-
-    return NextResponse.json({ rooms, floors: maxFloor })
+    return NextResponse.json({ rooms, floors })
   } catch (error) {
     console.error('Get rooms error:', error)
     return NextResponse.json({ error: '获取房间失败' }, { status: 500 })
@@ -48,48 +46,99 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { action, floor, positionStart, positionEnd, roomType, description, roomId, isNewFloor } = body
+    const { action, floor, positionStart, positionEnd, roomType, description, name, roomId, isNewFloor } = body
 
-    let saveId = await getCurrentSaveId(session.userId)
-    
-    if (!saveId) {
-      const db = await getDb()
-      db.run(
-        'INSERT INTO saves (user_id, save_name, game_data) VALUES (?, ?, ?)',
-        [session.userId, '自动存档', JSON.stringify({})]
-      )
-      const result = db.exec('SELECT last_insert_rowid()')
-      saveId = result[0].values[0][0] as number
-    }
+    // 确保游戏状态存在
+    await ensureGameState(session.userId)
 
     switch (action) {
       case 'create': {
         const cellCount = positionEnd - positionStart
         const cost = calculateBuildCost(roomType, cellCount, isNewFloor || false)
-        
-        const room = await createRoom(saveId, floor, positionStart, positionEnd, roomType, description)
-        
+
+        // 检查并扣除费用
+        let gameState = await getGameState(session.userId)
+        // 确保游戏状态存在（处理并发情况）
+        if (!gameState) {
+          await ensureGameState(session.userId)
+          gameState = await getGameState(session.userId)
+        }
+        // 如果仍然没有游戏状态，返回错误
+        if (!gameState) {
+          return NextResponse.json({ error: '初始化游戏状态失败' }, { status: 500 })
+        }
+
+        if (gameState.currency < cost.currency) {
+          return NextResponse.json({ error: `货币不足，需要 ${cost.currency} 货币` }, { status: 400 })
+        }
+
+        if (gameState.energy < cost.energy) {
+          return NextResponse.json({ error: `体力不足，需要 ${cost.energy} 点体力` }, { status: 400 })
+        }
+
+        // 扣除货币和体力
+        const deducted = await deductCurrency(session.userId, cost.currency)
+        if (!deducted) {
+          return NextResponse.json({ error: `货币不足，需要 ${cost.currency} 货币` }, { status: 400 })
+        }
+
+        await updateGameState(session.userId, { energy: gameState.energy - cost.energy })
+
+        const room = await createRoom(session.userId, floor, positionStart, positionEnd, roomType, description, name)
+
         if (!room) {
+          // 如果创建失败，退还费用
+          await updateGameState(session.userId, { currency: gameState.currency, energy: gameState.energy })
           return NextResponse.json({ error: '房间位置无效或重叠' }, { status: 400 })
         }
-        
+
         return NextResponse.json({ room, cost })
       }
-      
+
       case 'update': {
-        await updateRoomType(roomId, roomType, description)
+        await updateRoomType(roomId, roomType, description, name)
         return NextResponse.json({ success: true })
       }
-      
+
       case 'delete': {
         const refund = await deleteRoom(roomId)
         return NextResponse.json({ success: true, refund })
       }
-      
+
       case 'addFloor': {
-        const newFloor = await addNewFloor(saveId)
-        const cost = calculateBuildCost('empty', 0, true)
-        return NextResponse.json({ floor: newFloor, cost })
+        const floorCost = BUILD_COSTS.newFloor
+        let gameState = await getGameState(session.userId)
+        // 确保游戏状态存在
+        if (!gameState) {
+          await ensureGameState(session.userId)
+          gameState = await getGameState(session.userId)
+        }
+        // 如果仍然没有游戏状态，返回错误
+        if (!gameState) {
+          return NextResponse.json({ error: '初始化游戏状态失败' }, { status: 500 })
+        }
+
+        if (gameState.currency < floorCost.currency) {
+          return NextResponse.json({ error: `货币不足，需要 ${floorCost.currency} 货币来建造新楼层` }, { status: 400 })
+        }
+
+        if (gameState.energy < floorCost.energy) {
+          return NextResponse.json({ error: `体力不足，需要 ${floorCost.energy} 点体力` }, { status: 400 })
+        }
+
+        // 扣除费用
+        const deducted = await deductCurrency(session.userId, floorCost.currency)
+        if (!deducted) {
+          return NextResponse.json({ error: `货币不足，需要 ${floorCost.currency} 货币来建造新楼层` }, { status: 400 })
+        }
+
+        await updateGameState(session.userId, { energy: gameState.energy - floorCost.energy })
+
+        const newFloorNum = await addNewFloor(session.userId)
+        await updateGameState(session.userId, { totalFloors: newFloorNum })
+        const cost = { currency: floorCost.currency, energy: floorCost.energy }
+
+        return NextResponse.json({ floor: newFloorNum, cost })
       }
       
       default:

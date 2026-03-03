@@ -27,7 +27,7 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     return []
   }
 
-  return result[0].values.map((row) => ({
+  return result[0].values.map((row: unknown[]) => ({
     id: row[0] as number,
     username: row[1] as string,
     role: row[2] as string,
@@ -40,8 +40,8 @@ export async function getAllUsers(): Promise<AdminUser[]> {
 export async function banUser(userId: number): Promise<boolean> {
   const db = await getDb()
   
-  const result = db.exec('SELECT role FROM users WHERE id = ?', [userId])
-  if (result.length === 0 || result[0].values.length === 0) {
+  const result = db.exec(`SELECT role FROM users WHERE id = ${userId}`)
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return false
   }
 
@@ -49,7 +49,7 @@ export async function banUser(userId: number): Promise<boolean> {
     return false
   }
 
-  db.run('UPDATE users SET is_banned = 1 WHERE id = ?', [userId])
+  db.run(`UPDATE users SET is_banned = 1 WHERE id = ${userId}`)
   saveDb()
   
   return true
@@ -58,12 +58,12 @@ export async function banUser(userId: number): Promise<boolean> {
 export async function unbanUser(userId: number): Promise<boolean> {
   const db = await getDb()
   
-  const result = db.exec('SELECT id FROM users WHERE id = ?', [userId])
+  const result = db.exec(`SELECT id FROM users WHERE id = ${userId}`)
   if (result.length === 0 || result[0].values.length === 0) {
     return false
   }
 
-  db.run('UPDATE users SET is_banned = 0 WHERE id = ?', [userId])
+  db.run(`UPDATE users SET is_banned = 0 WHERE id = ${userId}`)
   saveDb()
   
   return true
@@ -94,9 +94,9 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export async function isAdmin(userId: number): Promise<boolean> {
   const db = await getDb()
-  const result = db.exec('SELECT role FROM users WHERE id = ?', [userId])
+  const result = db.exec(`SELECT role FROM users WHERE id = ${userId}`)
   
-  if (result.length === 0 || result[0].values.length === 0) {
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return false
   }
   

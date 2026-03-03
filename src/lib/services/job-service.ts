@@ -1,7 +1,6 @@
 import { getDb, saveDb } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
-import { getUserById } from '@/lib/auth/repo'
-import { incrementApiCalls } from '@/lib/auth/repo'
+import { getUserById, incrementApiCalls } from '@/lib/auth/repo'
 
 export interface Job {
   name: string
@@ -94,41 +93,42 @@ export function getDefaultJobs(): Job[] {
   return shuffled.slice(0, 3)
 }
 
-export async function startJob(saveId: number, job: Job): Promise<void> {
+export async function startJob(userId: number, job: Job): Promise<void> {
   const db = await getDb()
+  const jobJson = JSON.stringify({ ...job, daysWorked: 0 }).replace(/'/g, "''")
   
   db.run(
-    'UPDATE game_states SET current_job = ? WHERE save_id = ?',
-    [JSON.stringify({ ...job, daysWorked: 0 }), saveId]
+    `UPDATE users SET current_job = '${jobJson}' WHERE id = ${userId}`
   )
   saveDb()
 }
 
-export async function quitJob(saveId: number): Promise<void> {
+export async function quitJob(userId: number): Promise<void> {
   const db = await getDb()
-  db.run('UPDATE game_states SET current_job = NULL WHERE save_id = ?', [saveId])
+  db.run(`UPDATE users SET current_job = NULL WHERE id = ${userId}`)
   saveDb()
 }
 
-export async function getCurrentJob(saveId: number): Promise<{ name: string; salary: number; daysWorked: number } | null> {
+export async function getCurrentJob(userId: number): Promise<{ name: string; salary: number; daysWorked: number } | null> {
   const db = await getDb()
-  const result = db.exec('SELECT current_job FROM game_states WHERE save_id = ?', [saveId])
+  const result = db.exec(`SELECT current_job FROM users WHERE id = ${userId}`)
   
-  if (result.length === 0 || !result[0].values[0][0]) {
+  if (!result || result.length === 0 || !result[0].values || !result[0].values[0][0]) {
     return null
   }
   
   return JSON.parse(result[0].values[0][0] as string)
 }
 
-export async function incrementJobDays(saveId: number): Promise<void> {
-  const job = await getCurrentJob(saveId)
+export async function incrementJobDays(userId: number): Promise<void> {
+  const job = await getCurrentJob(userId)
   if (!job) return
   
   const db = await getDb()
+  const jobJson = JSON.stringify({ ...job, daysWorked: job.daysWorked + 1 }).replace(/'/g, "''")
+  
   db.run(
-    'UPDATE game_states SET current_job = ? WHERE save_id = ?',
-    [JSON.stringify({ ...job, daysWorked: job.daysWorked + 1 }), saveId]
+    `UPDATE users SET current_job = '${jobJson}' WHERE id = ${userId}`
   )
   saveDb()
 }

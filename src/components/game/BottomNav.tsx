@@ -9,6 +9,9 @@ const navItems = [
   { href: '/game/recruit', label: '招募', icon: '✨' },
   { href: '/game/building', label: '基建', icon: '🏢' },
   { href: '/game/work', label: '打工', icon: '💼' },
+  { href: '/game/multiplayer', label: '联机', icon: '🌐' },
+  { href: '/game/workshop', label: '工坊', icon: '🏪' },
+  { href: '/game/presets', label: '预设', icon: '🧩' },
   { href: '/game/saves', label: '存档', icon: '💾' },
 ]
 

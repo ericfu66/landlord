@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateUser } from '@/lib/auth/repo'
 import { setSession } from '@/lib/auth/session'
+import { getDb } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,13 +24,32 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // 查询用户的 onboarding 状态
+    const db = await getDb()
+    const userData = db.exec(`
+      SELECT needs_onboarding, role 
+      FROM users 
+      WHERE id = ${result.id}
+    `)
+    
+    let needsOnboarding = false
+    if (userData && userData[0]?.values?.length > 0) {
+      needsOnboarding = userData[0].values[0][0] === 1
+      const role = userData[0].values[0][1] as string
+      // 管理员不需要 onboarding
+      if (role === 'admin') {
+        needsOnboarding = false
+      }
+    }
+    
     await setSession({
       userId: result.id,
       username: result.username,
-      role: result.role
+      role: result.role,
+      needsOnboarding
     })
     
-    return NextResponse.json({ user: result })
+    return NextResponse.json({ user: result, needsOnboarding })
   } catch (error) {
     console.error('Login error:', error)
     return NextResponse.json(

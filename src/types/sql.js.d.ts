@@ -15,5 +15,9 @@ declare module 'sql.js' {
     Database: new (data?: ArrayLike<number>) => Database
   }
 
-  export default function initSqlJs(): Promise<SqlJsStatic>
+  export interface InitSqlJsOptions {
+    locateFile?: (file: string) => string
+  }
+
+  export default function initSqlJs(options?: InitSqlJsOptions): Promise<SqlJsStatic>
 }

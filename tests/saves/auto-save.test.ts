@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { shouldAutoSaveOn, MAX_SAVE_SLOTS } from '@/lib/services/save-service'
+import { shouldAutoSaveOn } from '@/lib/services/save-service'
 
 describe('autosave triggers', () => {
   it('autosaves after recruit and daily settlement', () => {
@@ -17,9 +17,5 @@ describe('autosave triggers', () => {
 
   it('does not autosave on manual trigger', () => {
     expect(shouldAutoSaveOn('manual')).toBe(false)
-  })
-
-  it('has max save slots defined', () => {
-    expect(MAX_SAVE_SLOTS).toBe(5)
   })
 })

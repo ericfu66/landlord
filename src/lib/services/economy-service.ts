@@ -1,7 +1,7 @@
 import { getDb, saveDb } from '@/lib/db'
 
 export interface GameState {
-  saveId: number
+  userId: number
   currentTime: string
   weather: string
   currency: number
@@ -48,101 +48,108 @@ export function evaluateFailure(state: {
   }
 }
 
-export async function getGameState(saveId: number): Promise<GameState | null> {
+export async function getGameState(userId: number): Promise<GameState | null> {
   const db = await getDb()
   const result = db.exec(
-    `SELECT id, current_time, weather, currency, energy, debt_days, total_floors, current_job
-     FROM game_states WHERE save_id = ?`,
-    [saveId]
+    `SELECT currency, energy, debt_days, total_floors, weather, current_time, current_job
+     FROM users WHERE id = ${userId}`
   )
 
-  if (result.length === 0 || result[0].values.length === 0) {
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return null
   }
 
   const row = result[0].values[0]
   return {
-    saveId: row[0] as number,
-    currentTime: row[1] as string || '08:00',
-    weather: row[2] as string || '晴',
-    currency: row[3] as number,
-    energy: row[4] as number,
-    debtDays: row[5] as number,
-    totalFloors: row[6] as number,
-    currentJob: row[7] ? JSON.parse(row[7] as string) : null
+    userId,
+    currentTime: (row[4] as string) || '08:00',
+    weather: (row[3] as string) || '晴',
+    currency: (row[0] as number) ?? 1000,
+    energy: (row[1] as number) ?? 3,
+    debtDays: (row[2] as number) ?? 0,
+    totalFloors: (row[3] as number) ?? 1,
+    currentJob: row[6] ? JSON.parse(row[6] as string) : null
   }
 }
 
-export async function updateGameState(saveId: number, updates: Partial<GameState>): Promise<void> {
+export async function updateGameState(
+  userId: number,
+  updates: Partial<Omit<GameState, 'userId'>>
+): Promise<void> {
   const db = await getDb()
-  
-  const existing = await getGameState(saveId)
-  if (!existing) {
-    db.run(
-      `INSERT INTO game_states (save_id, current_time, weather, currency, energy, debt_days, total_floors, current_job)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        saveId,
-        updates.currentTime || '08:00',
-        updates.weather || '晴',
-        updates.currency ?? 1000,
-        updates.energy ?? 3,
-        updates.debtDays ?? 0,
-        updates.totalFloors ?? 1,
-        updates.currentJob ? JSON.stringify(updates.currentJob) : null
-      ]
-    )
-  } else {
-    const fields: string[] = []
-    const values: (string | number | null)[] = []
 
-    if (updates.currentTime !== undefined) {
-      fields.push('current_time = ?')
-      values.push(updates.currentTime)
-    }
-    if (updates.weather !== undefined) {
-      fields.push('weather = ?')
-      values.push(updates.weather)
-    }
-    if (updates.currency !== undefined) {
-      fields.push('currency = ?')
-      values.push(updates.currency)
-    }
-    if (updates.energy !== undefined) {
-      fields.push('energy = ?')
-      values.push(updates.energy)
-    }
-    if (updates.debtDays !== undefined) {
-      fields.push('debt_days = ?')
-      values.push(updates.debtDays)
-    }
-    if (updates.totalFloors !== undefined) {
-      fields.push('total_floors = ?')
-      values.push(updates.totalFloors)
-    }
+  const fields: string[] = []
+  const values: (string | number | null)[] = []
+
+  if (updates.currentTime !== undefined) {
+    fields.push('current_time = ?')
+    values.push(updates.currentTime)
+  }
+  if (updates.weather !== undefined) {
+    fields.push('weather = ?')
+    values.push(updates.weather)
+  }
+  if (updates.currency !== undefined) {
+    fields.push('currency = ?')
+    values.push(updates.currency)
+  }
+  if (updates.energy !== undefined) {
+    fields.push('energy = ?')
+    values.push(updates.energy)
+  }
+  if (updates.debtDays !== undefined) {
+    fields.push('debt_days = ?')
+    values.push(updates.debtDays)
+  }
+  if (updates.totalFloors !== undefined) {
+    fields.push('total_floors = ?')
+    values.push(updates.totalFloors)
+  }
+  if (updates.currentJob !== undefined) {
+    fields.push('current_job = ?')
+    values.push(updates.currentJob ? JSON.stringify(updates.currentJob) : null)
+  }
+
+  if (fields.length > 0) {
+    // sql.js 不支持参数绑定，需要手动构建 SQL
+    const setClauses: string[] = []
+    if (updates.currentTime !== undefined) setClauses.push(`current_time = '${updates.currentTime}'`)
+    if (updates.weather !== undefined) setClauses.push(`weather = '${updates.weather}'`)
+    if (updates.currency !== undefined) setClauses.push(`currency = ${updates.currency}`)
+    if (updates.energy !== undefined) setClauses.push(`energy = ${updates.energy}`)
+    if (updates.debtDays !== undefined) setClauses.push(`debt_days = ${updates.debtDays}`)
+    if (updates.totalFloors !== undefined) setClauses.push(`total_floors = ${updates.totalFloors}`)
     if (updates.currentJob !== undefined) {
-      fields.push('current_job = ?')
-      values.push(updates.currentJob ? JSON.stringify(updates.currentJob) : null)
+      const jobJson = updates.currentJob ? `'${JSON.stringify(updates.currentJob).replace(/'/g, "''")}'` : 'NULL'
+      setClauses.push(`current_job = ${jobJson}`)
     }
-
-    if (fields.length > 0) {
-      db.run(
-        `UPDATE game_states SET ${fields.join(', ')} WHERE save_id = ?`,
-        [...values, saveId]
-      )
-    }
+    
+    db.run(`UPDATE users SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ${userId}`)
+    saveDb()
   }
-  
-  saveDb()
 }
 
-export async function dailyReset(saveId: number): Promise<void> {
+export interface DailySettlement {
+  rentIncome: number
+  salaryIncome: number
+  totalIncome: number
+  previousCurrency: number
+  newCurrency: number
+}
+
+export async function dailyReset(userId: number): Promise<DailySettlement> {
   const db = await getDb()
-  
-  const state = await getGameState(saveId)
+
+  const state = await getGameState(userId)
   if (!state) {
-    await updateGameState(saveId, { energy: 3 })
-    return
+    await updateGameState(userId, { energy: 3 })
+    return {
+      rentIncome: 0,
+      salaryIncome: 0,
+      totalIncome: 0,
+      previousCurrency: 0,
+      newCurrency: 0
+    }
   }
 
   const weathers = ['晴', '多云', '小雨', '大雨', '雪']
@@ -155,44 +162,70 @@ export async function dailyReset(saveId: number): Promise<void> {
     newDebtDays = 0
   }
 
-  await updateGameState(saveId, {
+  // 计算所有角色的租金收入
+  const charResult = db.exec(
+    `SELECT COALESCE(SUM(rent), 0) as total_rent FROM characters WHERE user_id = ${userId}`
+  )
+  const totalRent = (charResult?.[0]?.values?.[0]?.[0] as number) || 0
+
+  // 计算总收入（工资 + 租金）
+  let salaryIncome = 0
+  if (state.currentJob) {
+    salaryIncome = state.currentJob.salary
+  }
+  const totalIncome = totalRent + salaryIncome
+
+  // 计算新的货币数量
+  const newCurrency = state.currency + totalIncome
+
+  // 更新游戏状态
+  await updateGameState(userId, {
     energy: 3,
     weather: randomWeather,
-    debtDays: newDebtDays
+    debtDays: newDebtDays,
+    currency: newCurrency
   })
 
+  // 如果有工作，扣除体力
   if (state.currentJob) {
-    await updateGameState(saveId, {
-      currency: state.currency + state.currentJob.salary,
-      energy: Math.max(0, state.energy - 1)
+    await updateGameState(userId, {
+      energy: Math.max(0, 3 - 1) // 新的一天初始体力是3，工作消耗1
     })
+  }
+
+  return {
+    rentIncome: totalRent,
+    salaryIncome: salaryIncome,
+    totalIncome: totalIncome,
+    previousCurrency: state.currency,
+    newCurrency: newCurrency
   }
 }
 
-export async function deductEnergy(saveId: number, amount: number = 1): Promise<boolean> {
-  const state = await getGameState(saveId)
+export async function deductEnergy(userId: number, amount: number = 1): Promise<boolean> {
+  const state = await getGameState(userId)
   if (!state || state.energy < amount) {
     return false
   }
 
-  await updateGameState(saveId, { energy: state.energy - amount })
+  await updateGameState(userId, { energy: state.energy - amount })
   return true
 }
 
-export async function addCurrency(saveId: number, amount: number): Promise<void> {
-  const state = await getGameState(saveId)
+export async function addCurrency(userId: number, amount: number): Promise<void> {
+  const state = await getGameState(userId)
   if (!state) return
 
-  await updateGameState(saveId, { currency: state.currency + amount })
+  await updateGameState(userId, { currency: state.currency + amount })
 }
 
-export async function deductCurrency(saveId: number, amount: number): Promise<boolean> {
-  const state = await getGameState(saveId)
+export async function deductCurrency(userId: number, amount: number): Promise<boolean> {
+  const state = await getGameState(userId)
   if (!state || state.currency < amount) {
     return false
   }
 
-  await updateGameState(saveId, { currency: state.currency - amount })
+  await updateGameState(userId, { currency: state.currency - amount })
   return true
 }
 

@@ -25,7 +25,10 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: 'Noto Serif SC', serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Source Han Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Noise texture overlay */
@@ -239,4 +242,151 @@ body {
   .delay-600 { animation-delay: 600ms; }
   .delay-700 { animation-delay: 700ms; }
   .delay-800 { animation-delay: 800ms; }
+
+  /* Galgame animations */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-float-particle {
+    animation: floatParticle 3s ease-in-out infinite;
+  }
+
+  @keyframes floatParticle {
+    0%, 100% {
+      transform: translateY(0) scale(1);
+      opacity: 0.5;
+    }
+    50% {
+      transform: translateY(-20px) scale(1.2);
+      opacity: 0.8;
+    }
+  }
+}
+
+/* Building 3D Styles */
+.building-3d-container {
+  transform-style: preserve-3d;
+  perspective: 1200px;
+  perspective-origin: center top;
+}
+
+.building-floor {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s ease;
+}
+
+.building-floor:hover {
+  transform: translateY(-4px) translateZ(10px);
+}
+
+/* Room card 3D effects */
+.room-card-3d {
+  transform-style: preserve-3d;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.room-card-3d:hover {
+  transform: translateY(-8px) translateZ(20px) scale(1.05);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
+
+/* Floating animation for floor cards */
+@keyframes float-floor {
+  0%, 100% {
+    transform: translateY(0) translateZ(0);
+  }
+  50% {
+    transform: translateY(-4px) translateZ(5px);
+  }
+}
+
+.float-animation {
+  animation: float-floor 4s ease-in-out infinite;
+}
+
+/* Parallax scroll effect */
+.parallax-floor {
+  will-change: transform;
+  transition: transform 0.1s linear;
+}
+
+/* Glass morphism for modals */
+.glass-modal {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Custom scrollbar for building panel */
+.building-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.building-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.building-scroll::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+.building-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
+
+/* 3D Perspective container */
+.perspective-container {
+  perspective: 1000px;
+  perspective-origin: 50% 50%;
+}
+
+/* Isometric view option */
+.isometric-view {
+  transform: rotateX(60deg) rotateZ(-45deg);
+  transform-style: preserve-3d;
+}
+
+/* Shadow layers for depth */
+.shadow-layer-1 {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-layer-2 {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-layer-3 {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Border animations */
+@keyframes border-pulse {
+  0%, 100% {
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+  50% {
+    border-color: rgba(139, 92, 246, 0.6);
+  }
+}
+
+.animate-border-pulse {
+  animation: border-pulse 2s ease-in-out infinite;
 }

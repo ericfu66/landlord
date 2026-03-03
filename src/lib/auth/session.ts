@@ -9,6 +9,7 @@ export interface SessionPayload {
   userId: number
   username: string
   role: string
+  needsOnboarding?: boolean
 }
 
 export async function signToken(payload: SessionPayload): Promise<string> {
@@ -52,4 +53,26 @@ export async function setSession(payload: SessionPayload): Promise<void> {
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete('session')
+}
+
+// 创建session并返回token（用于API路由中手动设置cookie）
+export async function createSession(
+  userId: number, 
+  needsOnboarding?: boolean
+): Promise<string> {
+  const { getUserById } = await import('./repo')
+  const user = await getUserById(userId)
+  
+  if (!user) {
+    throw new Error('User not found')
+  }
+  
+  const payload: SessionPayload = {
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    needsOnboarding,
+  }
+  
+  return signToken(payload)
 }

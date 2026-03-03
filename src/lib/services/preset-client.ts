@@ -2,13 +2,17 @@ import { InteractionMode } from '@/types/preset'
 
 export const DEFAULT_PRESETS: Record<InteractionMode, { name: string; description: string }> = {
   daily: { name: '日常聊天', description: '与角色的日常对话交流' },
-  date: { name: '约会', description: '邀请角色外出约会' },
-  flirt: { name: '调情', description: '亲密互动（好感度>50解锁）' },
+  date: { name: '约会', description: '邀请角色外出约会（好感度≥30解锁）' },
+  flirt: { name: '调情', description: '亲密互动（好感度≥50解锁）' },
   free: { name: '自由对话', description: '无限制的自由交流' }
 }
 
+export function canUseDateMode(favorability: number): boolean {
+  return favorability >= 30
+}
+
 export function canUseFlirtMode(favorability: number): boolean {
-  return favorability > 50
+  return favorability >= 50
 }
 
 export function getInteractionModeInfo(mode: InteractionMode, favorability: number = 0): {
@@ -17,7 +21,13 @@ export function getInteractionModeInfo(mode: InteractionMode, favorability: numb
   unlocked: boolean
 } {
   const info = DEFAULT_PRESETS[mode]
-  const unlocked = mode === 'flirt' ? canUseFlirtMode(favorability) : true
-  
+  let unlocked = true
+
+  if (mode === 'date') {
+    unlocked = canUseDateMode(favorability)
+  } else if (mode === 'flirt') {
+    unlocked = canUseFlirtMode(favorability)
+  }
+
   return { ...info, unlocked }
 }

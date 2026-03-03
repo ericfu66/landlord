@@ -44,7 +44,7 @@ export interface CharacterTemplate {
 
 export interface Character {
   name: string
-  saveId: number
+  userId: number
   template: CharacterTemplate
   portraitUrl?: string
   favorability: number
@@ -53,6 +53,7 @@ export interface Character {
   rent?: number
   mood: string
   roomId?: number
+  worldviewId?: number
 }
 
 export function normalizeCharacter(raw: Record<string, unknown>): CharacterTemplate | null {
@@ -68,31 +69,33 @@ export function normalizeCharacter(raw: Record<string, unknown>): CharacterTempl
 }
 
 export async function createCharacter(
-  saveId: number,
+  userId: number,
   template: CharacterTemplate,
-  roomId?: number
+  roomId?: number,
+  worldviewId?: number
 ): Promise<Character | null> {
   const db = await getDb()
   
   const name = template.角色档案.基本信息.姓名
   
-  const existing = db.exec('SELECT name FROM characters WHERE name = ?', [name])
-  if (existing.length > 0 && existing[0].values.length > 0) {
+  const existing = db.exec(`SELECT name FROM characters WHERE name = '${name.replace(/'/g, "''")}'`)
+  if (existing && existing.length > 0 && existing[0].values && existing[0].values.length > 0) {
     return null
   }
   
   const rent = Math.floor(Math.random() * 300) + 200
   
+  const templateJson = JSON.stringify(template).replace(/'/g, "''")
+  const roomIdValue = roomId || 'NULL'
+  const worldviewIdValue = worldviewId || 'NULL'
   db.run(
-    `INSERT INTO characters (name, save_id, template, favorability, obedience, corruption, rent, mood, room_id)
-     VALUES (?, ?, ?, 0, 0, 0, ?, '平静', ?)`,
-    [name, saveId, JSON.stringify(template), rent, roomId || null]
+    `INSERT INTO characters (name, user_id, template, favorability, obedience, corruption, rent, mood, room_id, worldview_id)
+     VALUES ('${name.replace(/'/g, "''")}', ${userId}, '${templateJson}', 0, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue})`
   )
   
   if (roomId) {
     db.run(
-      'UPDATE rooms SET character_name = ? WHERE id = ?',
-      [name, roomId]
+      `UPDATE rooms SET character_name = '${name.replace(/'/g, "''")}' WHERE id = ${roomId}`
     )
   }
   
@@ -100,32 +103,32 @@ export async function createCharacter(
   
   return {
     name,
-    saveId,
+    userId,
     template,
     favorability: 0,
     obedience: 0,
     corruption: 0,
     rent,
     mood: '平静',
-    roomId
+    roomId,
+    worldviewId
   }
 }
 
-export async function getCharactersBySave(saveId: number): Promise<Character[]> {
+export async function getCharactersByUser(userId: number): Promise<Character[]> {
   const db = await getDb()
   const result = db.exec(
-    `SELECT name, save_id, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id
-     FROM characters WHERE save_id = ?`,
-    [saveId]
+    `SELECT name, user_id, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id, worldview_id
+     FROM characters WHERE user_id = ${userId}`
   )
   
-  if (result.length === 0) {
+  if (!result || result.length === 0 || !result[0].values) {
     return []
   }
   
-  return result[0].values.map((row) => ({
+  return result[0].values.map((row: unknown[]) => ({
     name: row[0] as string,
-    saveId: row[1] as number,
+    userId: row[1] as number,
     template: JSON.parse(row[2] as string) as CharacterTemplate,
     portraitUrl: row[3] as string | undefined,
     favorability: row[4] as number,
@@ -133,25 +136,27 @@ export async function getCharactersBySave(saveId: number): Promise<Character[]> 
     corruption: row[6] as number,
     rent: row[7] as number | undefined,
     mood: row[8] as string,
-    roomId: row[9] as number | undefined
+    roomId: row[9] as number | undefined,
+    worldviewId: row[10] as number | undefined
   }))
 }
 
 export async function updateCharacterPortrait(name: string, portraitUrl: string): Promise<void> {
   const db = await getDb()
-  db.run('UPDATE characters SET portrait_url = ? WHERE name = ?', [portraitUrl, name])
+  db.run(`UPDATE characters SET portrait_url = '${portraitUrl.replace(/'/g, "''")}' WHERE name = '${name.replace(/'/g, "''")}'`)
   saveDb()
 }
 
 export async function updateCharacterRoom(name: string, roomId: number | null): Promise<void> {
   const db = await getDb()
   
-  db.run('UPDATE characters SET room_id = ? WHERE name = ?', [roomId, name])
+  const roomIdValue = roomId === null ? 'NULL' : roomId
+  db.run(`UPDATE characters SET room_id = ${roomIdValue} WHERE name = '${name.replace(/'/g, "''")}'`)
   
   if (roomId) {
-    db.run('UPDATE rooms SET character_name = ? WHERE id = ?', [name, roomId])
+    db.run(`UPDATE rooms SET character_name = '${name.replace(/'/g, "''")}' WHERE id = ${roomId}`)
   } else {
-    db.run('UPDATE rooms SET character_name = NULL WHERE character_name = ?', [name])
+    db.run(`UPDATE rooms SET character_name = NULL WHERE character_name = '${name.replace(/'/g, "''")}'`)
   }
   
   saveDb()

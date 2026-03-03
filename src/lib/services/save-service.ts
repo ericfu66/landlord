@@ -2,163 +2,297 @@ import { getDb, saveDb } from '@/lib/db'
 
 export type AutoSaveTrigger = 'recruit' | 'daily_settlement' | 'building' | 'interaction' | 'manual'
 
-export interface SaveSlot {
-  id: number
-  userId: number
-  saveName: string
-  gameData: string
-  createdAt: string
-  updatedAt: string
+export interface GameData {
+  state: {
+    currency: number
+    energy: number
+    debtDays: number
+    totalFloors: number
+    weather: string
+    currentTime: string
+    currentJob: {
+      name: string
+      salary: number
+      daysWorked: number
+    } | null
+  }
+  characters: Array<{
+    name: string
+    template: string
+    portrait_url?: string
+    favorability: number
+    obedience: number
+    corruption: number
+    rent?: number
+    mood: string
+    room_id?: number
+  }>
+  rooms: Array<{
+    id: number
+    floor: number
+    position_start: number
+    position_end: number
+    room_type: string
+    description?: string
+    name?: string
+    character_name?: string
+    is_outdoor: boolean
+  }>
 }
-
-export const MAX_SAVE_SLOTS = 5
 
 export function shouldAutoSaveOn(trigger: AutoSaveTrigger): boolean {
   const autoSaveTriggers: AutoSaveTrigger[] = ['recruit', 'daily_settlement', 'building', 'interaction']
   return autoSaveTriggers.includes(trigger)
 }
 
-export async function getSavesByUser(userId: number): Promise<SaveSlot[]> {
-  const db = await getDb()
-  const result = db.exec(
-    `SELECT id, user_id, save_name, game_data, created_at, updated_at
-     FROM saves WHERE user_id = ? ORDER BY updated_at DESC`,
-    [userId]
-  )
-
-  if (result.length === 0) {
-    return []
-  }
-
-  return result[0].values.map((row) => ({
-    id: row[0] as number,
-    userId: row[1] as number,
-    saveName: row[2] as string,
-    gameData: row[3] as string,
-    createdAt: row[4] as string,
-    updatedAt: row[5] as string
-  }))
+// 辅助函数：转义 SQL 字符串
+function escapeSql(str: string): string {
+  return str.replace(/'/g, "''")
 }
 
-export async function getSaveById(saveId: number, userId: number): Promise<SaveSlot | null> {
+/**
+ * 收集用户的所有游戏数据
+ */
+export async function collectGameData(userId: number): Promise<GameData> {
   const db = await getDb()
-  const result = db.exec(
-    `SELECT id, user_id, save_name, game_data, created_at, updated_at
-     FROM saves WHERE id = ? AND user_id = ?`,
-    [saveId, userId]
+
+  // 1. 获取游戏状态
+  const stateResult = db.exec(
+    `SELECT currency, energy, debt_days, total_floors, weather, current_time, current_job
+     FROM users WHERE id = ${userId}`
   )
 
-  if (result.length === 0 || result[0].values.length === 0) {
-    return null
-  }
+  const state = stateResult && stateResult.length > 0 && stateResult[0].values && stateResult[0].values.length > 0
+    ? {
+        currency: (stateResult[0].values[0][0] as number) ?? 1000,
+        energy: (stateResult[0].values[0][1] as number) ?? 3,
+        debtDays: (stateResult[0].values[0][2] as number) ?? 0,
+        totalFloors: (stateResult[0].values[0][3] as number) ?? 1,
+        weather: (stateResult[0].values[0][4] as string) || '晴',
+        currentTime: (stateResult[0].values[0][5] as string) || '08:00',
+        currentJob: stateResult[0].values[0][6] 
+          ? JSON.parse(stateResult[0].values[0][6] as string) 
+          : null
+      }
+    : {
+        currency: 1000,
+        energy: 3,
+        debtDays: 0,
+        totalFloors: 1,
+        weather: '晴',
+        currentTime: '08:00',
+        currentJob: null
+      }
 
-  const row = result[0].values[0]
-  return {
-    id: row[0] as number,
-    userId: row[1] as number,
-    saveName: row[2] as string,
-    gameData: row[3] as string,
-    createdAt: row[4] as string,
-    updatedAt: row[5] as string
-  }
-}
-
-export async function createSave(
-  userId: number,
-  saveName: string,
-  gameData: Record<string, unknown>
-): Promise<SaveSlot | null> {
-  const db = await getDb()
-  
-  const existingSaves = await getSavesByUser(userId)
-  if (existingSaves.length >= MAX_SAVE_SLOTS) {
-    return null
-  }
-
-  db.run(
-    'INSERT INTO saves (user_id, save_name, game_data) VALUES (?, ?, ?)',
-    [userId, saveName, JSON.stringify(gameData)]
+  // 2. 获取角色数据
+  const charResult = db.exec(
+    `SELECT name, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id
+     FROM characters WHERE user_id = ${userId}`
   )
-  saveDb()
 
-  const result = db.exec('SELECT last_insert_rowid()')
-  const id = result[0].values[0][0] as number
+  const characters = charResult && charResult.length > 0 && charResult[0].values
+    ? charResult[0].values.map((row: unknown[]) => ({
+        name: row[0] as string,
+        template: row[1] as string,
+        portrait_url: row[2] as string | undefined,
+        favorability: (row[3] as number) ?? 0,
+        obedience: (row[4] as number) ?? 0,
+        corruption: (row[5] as number) ?? 0,
+        rent: row[6] as number | undefined,
+        mood: (row[7] as string) || '平静',
+        room_id: row[8] as number | undefined
+      }))
+    : []
 
-  return getSaveById(id, userId)
+  // 3. 获取房间数据
+  const roomResult = db.exec(
+    `SELECT id, floor, position_start, position_end, room_type, description, name, character_name, is_outdoor
+     FROM rooms WHERE user_id = ${userId}`
+  )
+
+  const rooms = roomResult && roomResult.length > 0 && roomResult[0].values
+    ? roomResult[0].values.map((row: unknown[]) => ({
+        id: row[0] as number,
+        floor: row[1] as number,
+        position_start: row[2] as number,
+        position_end: row[3] as number,
+        room_type: row[4] as string,
+        description: row[5] as string | undefined,
+        name: row[6] as string | undefined,
+        character_name: row[7] as string | undefined,
+        is_outdoor: (row[8] as number) === 1
+      }))
+    : []
+
+  return { state, characters, rooms }
 }
 
-export async function updateSave(
-  saveId: number,
-  userId: number,
-  gameData: Record<string, unknown>
-): Promise<boolean> {
-  const db = await getDb()
-  
-  const existing = await getSaveById(saveId, userId)
-  if (!existing) {
+/**
+ * 保存游戏数据到用户记录
+ */
+export async function saveGameData(userId: number, gameData: GameData): Promise<boolean> {
+  try {
+    const db = await getDb()
+    const { state } = gameData
+
+    // 更新用户表中的游戏状态
+    const currentJobJson = state.currentJob ? `'${escapeSql(JSON.stringify(state.currentJob))}'` : 'NULL'
+    
+    db.run(`UPDATE users SET 
+      currency = ${state.currency},
+      energy = ${state.energy},
+      debt_days = ${state.debtDays},
+      total_floors = ${state.totalFloors},
+      weather = '${escapeSql(state.weather)}',
+      current_time = '${escapeSql(state.currentTime)}',
+      current_job = ${currentJobJson},
+      updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${userId}`)
+
+    saveDb()
+    return true
+  } catch (error) {
+    console.error('saveGameData error:', error)
     return false
   }
-
-  db.run(
-    'UPDATE saves SET game_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-    [JSON.stringify(gameData), saveId]
-  )
-  saveDb()
-
-  return true
 }
 
-export async function deleteSave(saveId: number, userId: number): Promise<boolean> {
-  const db = await getDb()
-  
-  const existing = await getSaveById(saveId, userId)
-  if (!existing) {
+/**
+ * 导出游戏数据（用于下载备份）
+ */
+export async function exportGameData(userId: number): Promise<string | null> {
+  try {
+    const gameData = await collectGameData(userId)
+    return JSON.stringify(gameData, null, 2)
+  } catch (error) {
+    console.error('exportGameData error:', error)
+    return null
+  }
+}
+
+/**
+ * 导入游戏数据
+ */
+export async function importGameData(userId: number, jsonData: string): Promise<boolean> {
+  try {
+    const gameData = JSON.parse(jsonData) as GameData
+    
+    // 先保存状态到用户表
+    await saveGameData(userId, gameData)
+    
+    const db = await getDb()
+    
+    // 清除旧的角色和房间数据
+    db.run(`DELETE FROM characters WHERE user_id = ${userId}`)
+    db.run(`DELETE FROM rooms WHERE user_id = ${userId}`)
+
+    // 恢复角色数据
+    for (const char of gameData.characters) {
+      const portraitUrl = char.portrait_url ? `'${escapeSql(char.portrait_url)}'` : 'NULL'
+      const rent = char.rent !== undefined ? char.rent : 'NULL'
+      const roomId = char.room_id !== undefined ? char.room_id : 'NULL'
+      
+      db.run(`INSERT INTO characters (name, user_id, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id)
+       VALUES ('${escapeSql(char.name)}', ${userId}, '${escapeSql(char.template)}', ${portraitUrl}, ${char.favorability}, ${char.obedience}, ${char.corruption}, ${rent}, '${escapeSql(char.mood)}', ${roomId})`)
+    }
+
+    // 恢复房间数据
+    for (const room of gameData.rooms) {
+      const description = room.description ? `'${escapeSql(room.description)}'` : 'NULL'
+      const name = room.name ? `'${escapeSql(room.name)}'` : 'NULL'
+      const charName = room.character_name ? `'${escapeSql(room.character_name)}'` : 'NULL'
+      const isOutdoor = room.is_outdoor ? 1 : 0
+      
+      db.run(`INSERT INTO rooms (id, user_id, floor, position_start, position_end, room_type, description, name, character_name, is_outdoor)
+       VALUES (${room.id}, ${userId}, ${room.floor}, ${room.position_start}, ${room.position_end}, '${escapeSql(room.room_type)}', ${description}, ${name}, ${charName}, ${isOutdoor})`)
+    }
+
+    saveDb()
+    return true
+  } catch (error) {
+    console.error('importGameData error:', error)
     return false
   }
-
-  db.run('DELETE FROM saves WHERE id = ?', [saveId])
-  saveDb()
-
-  return true
 }
 
-export async function autoSave(
-  userId: number,
-  trigger: AutoSaveTrigger,
-  gameData: Record<string, unknown>
-): Promise<SaveSlot | null> {
-  if (!shouldAutoSaveOn(trigger)) {
+/**
+ * 重置用户游戏数据
+ */
+export async function resetGameData(userId: number): Promise<boolean> {
+  try {
+    const db = await getDb()
+    
+    // 重置用户游戏状态
+    db.run(`UPDATE users SET 
+      currency = 1000,
+      energy = 3,
+      debt_days = 0,
+      total_floors = 1,
+      weather = '晴',
+      current_time = '08:00',
+      current_job = NULL,
+      updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${userId}`)
+    
+    // 删除角色和房间
+    db.run(`DELETE FROM characters WHERE user_id = ${userId}`)
+    db.run(`DELETE FROM rooms WHERE user_id = ${userId}`)
+    
+    saveDb()
+    return true
+  } catch (error) {
+    console.error('resetGameData error:', error)
+    return false
+  }
+}
+
+/**
+ * 获取当前游戏状态（用于前端显示）
+ */
+export async function getCurrentGameState(userId: number): Promise<{
+  state: GameData['state']
+  characterCount: number
+  roomCount: number
+} | null> {
+  try {
+    const db = await getDb()
+
+    // 获取游戏状态
+    const stateResult = db.exec(
+      `SELECT currency, energy, debt_days, total_floors, weather, current_time, current_job
+       FROM users WHERE id = ${userId}`
+    )
+
+    if (!stateResult || stateResult.length === 0 || !stateResult[0].values || stateResult[0].values.length === 0) {
+      return null
+    }
+
+    const row = stateResult[0].values[0]
+    const state = {
+      currency: (row[0] as number) ?? 1000,
+      energy: (row[1] as number) ?? 3,
+      debtDays: (row[2] as number) ?? 0,
+      totalFloors: (row[3] as number) ?? 1,
+      weather: (row[4] as string) || '晴',
+      currentTime: (row[5] as string) || '08:00',
+      currentJob: row[6] ? JSON.parse(row[6] as string) : null
+    }
+
+    // 获取角色和房间数量
+    const charCountResult = db.exec(
+      `SELECT COUNT(*) FROM characters WHERE user_id = ${userId}`
+    )
+    const roomCountResult = db.exec(
+      `SELECT COUNT(*) FROM rooms WHERE user_id = ${userId}`
+    )
+
+    return {
+      state,
+      characterCount: (charCountResult[0]?.values[0][0] as number) || 0,
+      roomCount: (roomCountResult[0]?.values[0][0] as number) || 0
+    }
+  } catch (error) {
+    console.error('getCurrentGameState error:', error)
     return null
   }
-
-  const saves = await getSavesByUser(userId)
-  const autoSaveName = `自动存档 - ${trigger}`
-  
-  const existingAutoSave = saves.find((s) => s.saveName.startsWith('自动存档'))
-  
-  if (existingAutoSave) {
-    await updateSave(existingAutoSave.id, userId, gameData)
-    return getSaveById(existingAutoSave.id, userId)
-  }
-
-  return createSave(userId, autoSaveName, gameData)
-}
-
-export async function loadSave(saveId: number, userId: number): Promise<Record<string, unknown> | null> {
-  const save = await getSaveById(saveId, userId)
-  if (!save) {
-    return null
-  }
-
-  return JSON.parse(save.gameData)
-}
-
-export async function getSaveCount(userId: number): Promise<number> {
-  const saves = await getSavesByUser(userId)
-  return saves.length
-}
-
-export async function canCreateSave(userId: number): Promise<boolean> {
-  const count = await getSaveCount(userId)
-  return count < MAX_SAVE_SLOTS
 }
