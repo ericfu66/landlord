@@ -13,27 +13,51 @@ export default function StatusBar({
   time = '08:00',
   weather = '晴'
 }: StatusBarProps) {
+  // Compact weather display for mobile
+  const weatherEmoji: Record<string, string> = {
+    '晴': '☀️',
+    '多云': '⛅',
+    '阴': '☁️',
+    '雨': '🌧️',
+    '雪': '❄️',
+    '雾': '🌫️',
+  }
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-40">
-      <div className="glass-card mx-4 mt-4 px-4 py-3">
+    <div className="fixed top-0 left-0 right-0 z-40 safe-area-inset-top">
+      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-amber-400">☀️</span>
-              <span className="text-sm text-gray-200">{time}</span>
-              <span className="text-xs text-gray-500">{weather}</span>
+          {/* Left: Time & Weather */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-amber-400 text-sm sm:text-base">
+                {weatherEmoji[weather] || '☀️'}
+              </span>
+              <span className="text-sm sm:text-base text-gray-200 font-medium">{time}</span>
+              {/* Weather text hidden on smallest screens */}
+              <span className="hidden sm:inline text-xs text-gray-500">{weather}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+          {/* Right: Currency & Energy */}
+          <div className="flex items-center gap-3 sm:gap-6">
+            {/* Currency */}
+            <div className="flex items-center gap-1 sm:gap-2">
               <span className="text-amber-400">💰</span>
-              <span className="font-semibold text-amber-300">{currency.toLocaleString()}</span>
+              <span className="font-semibold text-amber-300 text-sm sm:text-base">
+                {currency.toLocaleString()}
+              </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Energy - Compact for mobile */}
+            <div className="flex items-center gap-1 sm:gap-2">
               <span className="text-amber-400">⚡</span>
-              <div className="flex gap-1">
+              {/* Mobile: Show number only */}
+              <span className="sm:hidden font-semibold text-amber-300 text-sm">
+                {energy}/3
+              </span>
+              {/* Desktop: Show bars */}
+              <div className="hidden sm:flex gap-1">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}

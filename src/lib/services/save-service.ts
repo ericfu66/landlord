@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 
 export type AutoSaveTrigger = 'recruit' | 'daily_settlement' | 'building' | 'interaction' | 'manual'
 
@@ -45,10 +45,7 @@ export function shouldAutoSaveOn(trigger: AutoSaveTrigger): boolean {
   return autoSaveTriggers.includes(trigger)
 }
 
-// 辅助函数：转义 SQL 字符串
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''")
-}
+
 
 /**
  * 收集用户的所有游戏数据
@@ -133,21 +130,22 @@ export async function collectGameData(userId: number): Promise<GameData> {
 export async function saveGameData(userId: number, gameData: GameData): Promise<boolean> {
   try {
     const db = await getDb()
+    const safeUserId = safeInt(userId)
     const { state } = gameData
 
     // 更新用户表中的游戏状态
-    const currentJobJson = state.currentJob ? `'${escapeSql(JSON.stringify(state.currentJob))}'` : 'NULL'
+    const currentJobJson = state.currentJob ? `'${safeSqlString(JSON.stringify(state.currentJob))}'` : 'NULL'
     
     db.run(`UPDATE users SET 
-      currency = ${state.currency},
-      energy = ${state.energy},
-      debt_days = ${state.debtDays},
-      total_floors = ${state.totalFloors},
-      weather = '${escapeSql(state.weather)}',
-      current_time = '${escapeSql(state.currentTime)}',
+      currency = ${safeInt(state.currency)},
+      energy = ${safeInt(state.energy)},
+      debt_days = ${safeInt(state.debtDays)},
+      total_floors = ${safeInt(state.totalFloors)},
+      weather = '${safeSqlString(state.weather)}',
+      current_time = '${safeSqlString(state.currentTime)}',
       current_job = ${currentJobJson},
       updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${userId}`)
+      WHERE id = ${safeUserId}`)
 
     saveDb()
     return true
@@ -176,35 +174,36 @@ export async function exportGameData(userId: number): Promise<string | null> {
 export async function importGameData(userId: number, jsonData: string): Promise<boolean> {
   try {
     const gameData = JSON.parse(jsonData) as GameData
+    const safeUserId = safeInt(userId)
     
     // 先保存状态到用户表
-    await saveGameData(userId, gameData)
+    await saveGameData(safeUserId, gameData)
     
     const db = await getDb()
     
     // 清除旧的角色和房间数据
-    db.run(`DELETE FROM characters WHERE user_id = ${userId}`)
-    db.run(`DELETE FROM rooms WHERE user_id = ${userId}`)
+    db.run(`DELETE FROM characters WHERE user_id = ${safeUserId}`)
+    db.run(`DELETE FROM rooms WHERE user_id = ${safeUserId}`)
 
     // 恢复角色数据
     for (const char of gameData.characters) {
-      const portraitUrl = char.portrait_url ? `'${escapeSql(char.portrait_url)}'` : 'NULL'
-      const rent = char.rent !== undefined ? char.rent : 'NULL'
-      const roomId = char.room_id !== undefined ? char.room_id : 'NULL'
+      const portraitUrl = char.portrait_url ? `'${safeSqlString(char.portrait_url)}'` : 'NULL'
+      const rent = char.rent !== undefined ? safeInt(char.rent) : 'NULL'
+      const roomId = char.room_id !== undefined ? safeInt(char.room_id) : 'NULL'
       
       db.run(`INSERT INTO characters (name, user_id, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id)
-       VALUES ('${escapeSql(char.name)}', ${userId}, '${escapeSql(char.template)}', ${portraitUrl}, ${char.favorability}, ${char.obedience}, ${char.corruption}, ${rent}, '${escapeSql(char.mood)}', ${roomId})`)
+       VALUES ('${safeSqlString(char.name)}', ${safeUserId}, '${safeSqlString(char.template)}', ${portraitUrl}, ${safeInt(char.favorability)}, ${safeInt(char.obedience)}, ${safeInt(char.corruption)}, ${rent}, '${safeSqlString(char.mood)}', ${roomId})`)
     }
 
     // 恢复房间数据
     for (const room of gameData.rooms) {
-      const description = room.description ? `'${escapeSql(room.description)}'` : 'NULL'
-      const name = room.name ? `'${escapeSql(room.name)}'` : 'NULL'
-      const charName = room.character_name ? `'${escapeSql(room.character_name)}'` : 'NULL'
+      const description = room.description ? `'${safeSqlString(room.description)}'` : 'NULL'
+      const name = room.name ? `'${safeSqlString(room.name)}'` : 'NULL'
+      const charName = room.character_name ? `'${safeSqlString(room.character_name)}'` : 'NULL'
       const isOutdoor = room.is_outdoor ? 1 : 0
       
       db.run(`INSERT INTO rooms (id, user_id, floor, position_start, position_end, room_type, description, name, character_name, is_outdoor)
-       VALUES (${room.id}, ${userId}, ${room.floor}, ${room.position_start}, ${room.position_end}, '${escapeSql(room.room_type)}', ${description}, ${name}, ${charName}, ${isOutdoor})`)
+       VALUES (${safeInt(room.id)}, ${safeUserId}, ${safeInt(room.floor)}, ${safeInt(room.position_start)}, ${safeInt(room.position_end)}, '${safeSqlString(room.room_type)}', ${description}, ${name}, ${charName}, ${isOutdoor})`)
     }
 
     saveDb()
@@ -221,6 +220,7 @@ export async function importGameData(userId: number, jsonData: string): Promise<
 export async function resetGameData(userId: number): Promise<boolean> {
   try {
     const db = await getDb()
+    const safeUserId = safeInt(userId)
     
     // 重置用户游戏状态
     db.run(`UPDATE users SET 
@@ -232,11 +232,11 @@ export async function resetGameData(userId: number): Promise<boolean> {
       current_time = '08:00',
       current_job = NULL,
       updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${userId}`)
+      WHERE id = ${safeUserId}`)
     
     // 删除角色和房间
-    db.run(`DELETE FROM characters WHERE user_id = ${userId}`)
-    db.run(`DELETE FROM rooms WHERE user_id = ${userId}`)
+    db.run(`DELETE FROM characters WHERE user_id = ${safeUserId}`)
+    db.run(`DELETE FROM rooms WHERE user_id = ${safeUserId}`)
     
     saveDb()
     return true
@@ -256,11 +256,12 @@ export async function getCurrentGameState(userId: number): Promise<{
 } | null> {
   try {
     const db = await getDb()
+    const safeUserId = safeInt(userId)
 
     // 获取游戏状态
     const stateResult = db.exec(
       `SELECT currency, energy, debt_days, total_floors, weather, current_time, current_job
-       FROM users WHERE id = ${userId}`
+       FROM users WHERE id = ${safeUserId}`
     )
 
     if (!stateResult || stateResult.length === 0 || !stateResult[0].values || stateResult[0].values.length === 0) {
@@ -280,10 +281,10 @@ export async function getCurrentGameState(userId: number): Promise<{
 
     // 获取角色和房间数量
     const charCountResult = db.exec(
-      `SELECT COUNT(*) FROM characters WHERE user_id = ${userId}`
+      `SELECT COUNT(*) FROM characters WHERE user_id = ${safeUserId}`
     )
     const roomCountResult = db.exec(
-      `SELECT COUNT(*) FROM rooms WHERE user_id = ${userId}`
+      `SELECT COUNT(*) FROM rooms WHERE user_id = ${safeUserId}`
     )
 
     return {

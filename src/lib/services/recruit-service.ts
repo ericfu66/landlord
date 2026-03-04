@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 
 export interface CharacterTemplate {
   角色档案: {
@@ -75,27 +75,30 @@ export async function createCharacter(
   worldviewId?: number
 ): Promise<Character | null> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
+  const safeRoomId = roomId ? safeInt(roomId) : null
+  const safeWorldviewId = worldviewId ? safeInt(worldviewId) : null
   
   const name = template.角色档案.基本信息.姓名
   
-  const existing = db.exec(`SELECT name FROM characters WHERE name = '${name.replace(/'/g, "''")}'`)
+  const existing = db.exec(`SELECT name FROM characters WHERE name = '${safeSqlString(name)}'`)
   if (existing && existing.length > 0 && existing[0].values && existing[0].values.length > 0) {
     return null
   }
   
   const rent = Math.floor(Math.random() * 300) + 200
   
-  const templateJson = JSON.stringify(template).replace(/'/g, "''")
-  const roomIdValue = roomId || 'NULL'
-  const worldviewIdValue = worldviewId || 'NULL'
+  const templateJson = safeSqlString(JSON.stringify(template))
+  const roomIdValue = safeRoomId ?? 'NULL'
+  const worldviewIdValue = safeWorldviewId ?? 'NULL'
   db.run(
     `INSERT INTO characters (name, user_id, template, favorability, obedience, corruption, rent, mood, room_id, worldview_id)
-     VALUES ('${name.replace(/'/g, "''")}', ${userId}, '${templateJson}', 0, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue})`
+     VALUES ('${safeSqlString(name)}', ${safeUserId}, '${templateJson}', 0, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue})`
   )
   
-  if (roomId) {
+  if (safeRoomId) {
     db.run(
-      `UPDATE rooms SET character_name = '${name.replace(/'/g, "''")}' WHERE id = ${roomId}`
+      `UPDATE rooms SET character_name = '${safeSqlString(name)}' WHERE id = ${safeRoomId}`
     )
   }
   
@@ -143,20 +146,21 @@ export async function getCharactersByUser(userId: number): Promise<Character[]> 
 
 export async function updateCharacterPortrait(name: string, portraitUrl: string): Promise<void> {
   const db = await getDb()
-  db.run(`UPDATE characters SET portrait_url = '${portraitUrl.replace(/'/g, "''")}' WHERE name = '${name.replace(/'/g, "''")}'`)
+  db.run(`UPDATE characters SET portrait_url = '${safeSqlString(portraitUrl)}' WHERE name = '${safeSqlString(name)}'`)
   saveDb()
 }
 
 export async function updateCharacterRoom(name: string, roomId: number | null): Promise<void> {
   const db = await getDb()
   
-  const roomIdValue = roomId === null ? 'NULL' : roomId
-  db.run(`UPDATE characters SET room_id = ${roomIdValue} WHERE name = '${name.replace(/'/g, "''")}'`)
+  const safeRoomId = roomId === null ? null : safeInt(roomId)
+  const roomIdValue = safeRoomId ?? 'NULL'
+  db.run(`UPDATE characters SET room_id = ${roomIdValue} WHERE name = '${safeSqlString(name)}'`)
   
-  if (roomId) {
-    db.run(`UPDATE rooms SET character_name = '${name.replace(/'/g, "''")}' WHERE id = ${roomId}`)
+  if (safeRoomId) {
+    db.run(`UPDATE rooms SET character_name = '${safeSqlString(name)}' WHERE id = ${safeRoomId}`)
   } else {
-    db.run(`UPDATE rooms SET character_name = NULL WHERE character_name = '${name.replace(/'/g, "''")}'`)
+    db.run(`UPDATE rooms SET character_name = NULL WHERE character_name = '${safeSqlString(name)}'`)
   }
   
   saveDb()

@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt } from '@/lib/db'
 
 export interface AdminUser {
   id: number
@@ -39,8 +39,9 @@ export async function getAllUsers(): Promise<AdminUser[]> {
 
 export async function banUser(userId: number): Promise<boolean> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   
-  const result = db.exec(`SELECT role FROM users WHERE id = ${userId}`)
+  const result = db.exec(`SELECT role FROM users WHERE id = ${safeUserId}`)
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return false
   }
@@ -49,7 +50,7 @@ export async function banUser(userId: number): Promise<boolean> {
     return false
   }
 
-  db.run(`UPDATE users SET is_banned = 1 WHERE id = ${userId}`)
+  db.run(`UPDATE users SET is_banned = 1 WHERE id = ${safeUserId}`)
   saveDb()
   
   return true
@@ -57,13 +58,14 @@ export async function banUser(userId: number): Promise<boolean> {
 
 export async function unbanUser(userId: number): Promise<boolean> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   
-  const result = db.exec(`SELECT id FROM users WHERE id = ${userId}`)
+  const result = db.exec(`SELECT id FROM users WHERE id = ${safeUserId}`)
   if (result.length === 0 || result[0].values.length === 0) {
     return false
   }
 
-  db.run(`UPDATE users SET is_banned = 0 WHERE id = ${userId}`)
+  db.run(`UPDATE users SET is_banned = 0 WHERE id = ${safeUserId}`)
   saveDb()
   
   return true
@@ -94,7 +96,8 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export async function isAdmin(userId: number): Promise<boolean> {
   const db = await getDb()
-  const result = db.exec(`SELECT role FROM users WHERE id = ${userId}`)
+  const safeUserId = safeInt(userId)
+  const result = db.exec(`SELECT role FROM users WHERE id = ${safeUserId}`)
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return false

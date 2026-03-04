@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { fetchModels } from '@/lib/ai/models'
 import { getUserById } from '@/lib/auth/repo'
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
     }
 
     const db = await getDb()
-    const result = db.exec(`SELECT api_config FROM users WHERE id = ${session.userId}`)
+    const safeUserId = safeInt(session.userId)
+    const result = db.exec(`SELECT api_config FROM users WHERE id = ${safeUserId}`)
 
     if (!result || result.length === 0 || !result[0].values || !result[0].values[0][0]) {
       return NextResponse.json({ error: '请先配置API' }, { status: 400 })
@@ -59,9 +60,10 @@ export async function POST(request: NextRequest) {
     }
 
     const db = await getDb()
+    const safeUserId = safeInt(session.userId)
+    const configJson = safeSqlString(JSON.stringify({ baseUrl: normalizedUrl, apiKey, model }))
     db.run(
-      'UPDATE users SET api_config = ? WHERE id = ?',
-      [JSON.stringify({ baseUrl: normalizedUrl, apiKey, model }), session.userId]
+      `UPDATE users SET api_config = '${configJson}' WHERE id = ${safeUserId}`
     )
     saveDb()
 

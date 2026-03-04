@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { getUserById } from '@/lib/auth/repo'
 import { getGameState, updateGameState, dailyReset } from '@/lib/services/economy-service'
-import { getDb } from '@/lib/db'
+import { getDb, safeInt } from '@/lib/db'
 import { generateDailyNews } from '@/lib/services/news-service'
 
 export async function POST() {
@@ -44,8 +44,9 @@ export async function POST() {
         
         // 获取租客列表
         const db = await getDb()
+        const safeUserId = safeInt(session.userId)
         const charResult = db.exec(`
-          SELECT name FROM characters WHERE user_id = ${session.userId}
+          SELECT name FROM characters WHERE user_id = ${safeUserId}
         `)
         const tenantNames = charResult && charResult[0]?.values 
           ? charResult[0].values.map((row: unknown[]) => row[0] as string)

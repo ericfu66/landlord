@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useGameState } from '../GameStateContext'
+import { Sparkles, Users, AlertCircle } from 'lucide-react'
 
 interface WorldView {
   id: number
@@ -166,7 +167,6 @@ export default function RecruitPage() {
       }
 
       await refreshGameState()
-      // 刷新空房间数量
       await fetchAvailableRooms()
       router.push('/game')
     } catch {
@@ -177,21 +177,32 @@ export default function RecruitPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="glass-card p-6 mb-6">
-        <h1 className="text-2xl font-bold mb-6">招募租客</h1>
+    <div className="max-w-4xl mx-auto px-2 sm:px-0">
+      <div className="glass-card p-4 sm:p-6">
+        {/* Header */}
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/10 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold">招募租客</h1>
+        </div>
 
         {!character ? (
-          <div className="space-y-6">
-            <div className="glass-card p-4 mb-4">
+          <div className="space-y-4 sm:space-y-6">
+            {/* Available rooms indicator */}
+            <div className="glass-card p-3 sm:p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">可用空房间</span>
-                <span className={`text-2xl font-bold ${availableRooms > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                  <span className="text-xs sm:text-sm text-gray-300">可用空房间</span>
+                </div>
+                <span className={`text-xl sm:text-2xl font-bold ${availableRooms > 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {loadingRooms ? '...' : availableRooms}
                 </span>
               </div>
               {availableRooms === 0 && !loadingRooms && (
-                <p className="text-red-400 text-sm mt-2">
+                <p className="text-red-400 text-xs sm:text-sm mt-2 flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                   没有空房间！请先 <a href="/game/building" className="underline hover:text-red-300">去建造房间</a>
                 </p>
               )}
@@ -199,34 +210,34 @@ export default function RecruitPage() {
             
             {/* 世界观选择器 */}
             <div>
-              <label className="block text-sm font-medium mb-3">世界观（可选）</label>
+              <label className="block text-xs sm:text-sm font-medium mb-2 sm:mb-3">世界观（可选）</label>
               {loadingWorldviews ? (
-                <div className="text-gray-400 text-sm">加载中...</div>
+                <div className="text-gray-400 text-xs sm:text-sm">加载中...</div>
               ) : worldviews.length === 0 ? (
-                <div className="glass-card p-3 bg-white/5">
-                  <p className="text-gray-400 text-sm">暂无世界观</p>
-                  <a href="/game/worldviews" className="text-purple-400 text-sm hover:underline">
+                <div className="glass-card p-2.5 sm:p-3 bg-white/5">
+                  <p className="text-gray-400 text-xs sm:text-sm">暂无世界观</p>
+                  <a href="/game/worldviews" className="text-purple-400 text-xs sm:text-sm hover:underline">
                     去创建世界观 →
                   </a>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2 max-h-32 sm:max-h-40 overflow-y-auto scrollbar-hide">
                   <button
                     onClick={() => setSelectedWorldviewId(null)}
-                    className={`w-full p-3 rounded-lg text-left transition-colors ${
+                    className={`w-full p-2.5 sm:p-3 rounded-lg text-left transition-colors text-xs sm:text-sm ${
                       selectedWorldviewId === null
                         ? 'bg-purple-600 text-white'
                         : 'bg-white/10 hover:bg-white/20'
                     }`}
                   >
                     <div className="font-medium">默认世界观</div>
-                    <div className="text-sm opacity-80">不指定特定世界观</div>
+                    <div className="opacity-80 text-[10px] sm:text-xs">不指定特定世界观</div>
                   </button>
                   {worldviews.map((worldview) => (
                     <button
                       key={worldview.id}
                       onClick={() => setSelectedWorldviewId(worldview.id)}
-                      className={`w-full p-3 rounded-lg text-left transition-colors ${
+                      className={`w-full p-2.5 sm:p-3 rounded-lg text-left transition-colors text-xs sm:text-sm ${
                         selectedWorldviewId === worldview.id
                           ? 'bg-purple-600 text-white'
                           : 'bg-white/10 hover:bg-white/20'
@@ -234,7 +245,7 @@ export default function RecruitPage() {
                     >
                       <div className="font-medium">{worldview.name}</div>
                       {worldview.description && (
-                        <div className="text-sm opacity-80">{worldview.description}</div>
+                        <div className="opacity-80 text-[10px] sm:text-xs line-clamp-1">{worldview.description}</div>
                       )}
                     </button>
                   ))}
@@ -242,12 +253,13 @@ export default function RecruitPage() {
               )}
             </div>
 
+            {/* Character type */}
             <div>
-              <label className="block text-sm font-medium mb-3">角色类型</label>
-              <div className="flex gap-4">
+              <label className="block text-xs sm:text-sm font-medium mb-2 sm:mb-3">角色类型</label>
+              <div className="flex gap-2 sm:gap-4">
                 <button
                   onClick={() => setCharacterType('modern')}
-                  className={`flex-1 py-3 rounded-lg transition-colors ${
+                  className={`flex-1 py-2.5 sm:py-3 rounded-lg transition-colors text-xs sm:text-sm touch-target ${
                     characterType === 'modern'
                       ? 'bg-purple-600 text-white'
                       : 'bg-white/10 hover:bg-white/20'
@@ -257,7 +269,7 @@ export default function RecruitPage() {
                 </button>
                 <button
                   onClick={() => setCharacterType('crossover')}
-                  className={`flex-1 py-3 rounded-lg transition-colors ${
+                  className={`flex-1 py-2.5 sm:py-3 rounded-lg transition-colors text-xs sm:text-sm touch-target ${
                     characterType === 'crossover'
                       ? 'bg-purple-600 text-white'
                       : 'bg-white/10 hover:bg-white/20'
@@ -270,109 +282,112 @@ export default function RecruitPage() {
 
             {characterType === 'crossover' && (
               <div>
-                <label className="block text-sm font-medium mb-2">来源说明</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">来源说明</label>
                 <input
                   type="text"
                   value={sourceDescription}
                   onChange={(e) => setSourceDescription(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                   placeholder="例如：来自古代中国、来自二次元世界..."
                 />
               </div>
             )}
 
+            {/* Traits input */}
             <div>
-              <label className="block text-sm font-medium mb-2">期望特征</label>
+              <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">期望特征</label>
               <textarea
                 value={traits}
                 onChange={(e) => setTraits(e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-32"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-24 sm:min-h-32 text-sm resize-none"
                 placeholder="描述你期望的角色特征，例如：温柔善良的女生，喜欢读书..."
               />
             </div>
 
             {error && (
-              <p className="text-red-400 text-sm">{error}</p>
+              <p className="text-red-400 text-xs sm:text-sm">{error}</p>
             )}
 
             <button
               onClick={generateCharacter}
               disabled={loading || availableRooms === 0}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-sm touch-target"
             >
               {loading ? '生成中...' : availableRooms === 0 ? '请先去建造房间' : '生成角色'}
             </button>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-4xl">
+          <div className="space-y-4 sm:space-y-6">
+            {/* Character preview */}
+            <div className="text-center mb-4 sm:mb-6">
+              <div className="w-16 h-16 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-3xl sm:text-4xl">
                 {character.角色档案.基本信息.性别 === '女' ? '👩' : '👨'}
               </div>
-              <h2 className="text-2xl font-bold">{character.角色档案.基本信息.姓名}</h2>
-              <p className="text-gray-400">
+              <h2 className="text-xl sm:text-2xl font-bold">{character.角色档案.基本信息.姓名}</h2>
+              <p className="text-gray-400 text-sm">
                 {character.角色档案.基本信息.年龄}岁 · {character.角色档案.基本信息.身份}
               </p>
-              <div className="flex gap-2 justify-center mt-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center mt-2">
                 {character.角色档案.基本信息.标签.map((tag, i) => (
-                  <span key={i} className="px-2 py-1 bg-white/10 rounded-full text-xs">
+                  <span key={i} className="px-2 py-0.5 bg-white/10 rounded-full text-[10px] sm:text-xs">
                     {tag}
                   </span>
                 ))}
               </div>
               {selectedWorldviewId && (
-                <p className="text-purple-400 text-sm mt-2">
+                <p className="text-purple-400 text-xs sm:text-sm mt-2">
                   世界观: {worldviews.find(w => w.id === selectedWorldviewId)?.name}
                 </p>
               )}
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="glass-card p-4">
-                <h3 className="font-bold mb-2">外貌特征</h3>
-                <p className="text-gray-300">{character.角色档案.外貌特征.整体印象}</p>
+            {/* Character details grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4 text-xs sm:text-sm">
+              <div className="glass-card p-3 sm:p-4">
+                <h3 className="font-bold mb-1.5 sm:mb-2">外貌特征</h3>
+                <p className="text-gray-300 line-clamp-3">{character.角色档案.外貌特征.整体印象}</p>
               </div>
               
-              <div className="glass-card p-4">
-                <h3 className="font-bold mb-2">性格特点</h3>
-                <p className="text-gray-300">{character.角色档案.性格特点.核心特质}</p>
+              <div className="glass-card p-3 sm:p-4">
+                <h3 className="font-bold mb-1.5 sm:mb-2">性格特点</h3>
+                <p className="text-gray-300 line-clamp-3">{character.角色档案.性格特点.核心特质}</p>
               </div>
               
-              <div className="glass-card p-4">
-                <h3 className="font-bold mb-2">背景设定</h3>
-                <p className="text-gray-300">{character.角色档案.背景设定.家庭背景}</p>
+              <div className="glass-card p-3 sm:p-4">
+                <h3 className="font-bold mb-1.5 sm:mb-2">背景设定</h3>
+                <p className="text-gray-300 line-clamp-3">{character.角色档案.背景设定.家庭背景}</p>
               </div>
               
-              <div className="glass-card p-4">
-                <h3 className="font-bold mb-2">语言特征</h3>
-                <p className="text-gray-300">{character.角色档案.语言特征.说话习惯}</p>
+              <div className="glass-card p-3 sm:p-4">
+                <h3 className="font-bold mb-1.5 sm:mb-2">语言特征</h3>
+                <p className="text-gray-300 line-clamp-3">{character.角色档案.语言特征.说话习惯}</p>
               </div>
             </div>
 
             {error && (
-              <p className="text-red-400 text-sm">{error}</p>
+              <p className="text-red-400 text-xs sm:text-sm">{error}</p>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {availableRooms === 0 && !loadingRooms && (
-                <div className="glass-card p-4 border border-red-500/30">
-                  <p className="text-red-400 text-sm text-center">
+                <div className="glass-card p-3 sm:p-4 border border-red-500/30">
+                  <p className="text-red-400 text-xs sm:text-sm text-center">
                     ⚠️ 没有空房间！请先 <a href="/game/building" className="underline hover:text-red-300">去建造房间</a>
                   </p>
                 </div>
               )}
               
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                 <button
                   onClick={() => setCharacter(null)}
-                  className="flex-1 py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                  className="flex-1 py-2.5 sm:py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-sm touch-target"
                 >
                   重新生成
                 </button>
                 <button
                   onClick={confirmRecruit}
                   disabled={loading || availableRooms === 0}
-                  className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="flex-1 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-sm touch-target"
                 >
                   {loading ? '招募中...' : '确认招募'}
                 </button>

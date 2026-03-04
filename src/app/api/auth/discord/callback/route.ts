@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { createSession } from '@/lib/auth/session'
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1461367865608376400'
@@ -83,10 +83,11 @@ export async function GET(request: NextRequest) {
     const db = await getDb()
 
     // 检查是否已存在该Discord用户
+    const safeDiscordId = safeSqlString(discordUser.id)
     const existingUser = db.exec(`
       SELECT id, username, role, is_banned, needs_onboarding, onboarding_step
       FROM users 
-      WHERE discord_id = '${discordUser.id}'
+      WHERE discord_id = '${safeDiscordId}'
     `)
 
     let userId: number
@@ -101,12 +102,13 @@ export async function GET(request: NextRequest) {
       onboardingStep = row[5] as string
 
       // 更新Discord信息
+      const safeUserId = safeInt(userId)
       db.run(`
         UPDATE users 
-        SET discord_username = '${discordUser.username}',
-            discord_avatar = '${discordUser.avatar || ''}',
+        SET discord_username = '${safeSqlString(discordUser.username)}',
+            discord_avatar = '${safeSqlString(discordUser.avatar || '')}',
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${userId}
+        WHERE id = ${safeUserId}
       `)
     } else {
       // 创建新用户
@@ -122,10 +124,10 @@ export async function GET(request: NextRequest) {
           needs_onboarding,
           onboarding_step
         ) VALUES (
-          '${username}',
-          '${discordUser.id}',
-          '${discordUser.username}',
-          '${discordUser.avatar || ''}',
+          '${safeSqlString(username)}',
+          '${safeDiscordId}',
+          '${safeSqlString(discordUser.username)}',
+          '${safeSqlString(discordUser.avatar || '')}',
           'user',
           TRUE,
           'character'
@@ -136,7 +138,7 @@ export async function GET(request: NextRequest) {
       const newUser = db.exec(`
         SELECT id, needs_onboarding, onboarding_step 
         FROM users 
-        WHERE discord_id = '${discordUser.id}'
+        WHERE discord_id = '${safeDiscordId}'
       `)
       
       if (!newUser || !newUser[0].values || newUser[0].values.length === 0) {

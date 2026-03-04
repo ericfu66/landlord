@@ -1,10 +1,8 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { WorkshopItem, WorkshopItemType } from '@/types/workshop'
 import { getCharactersByUser } from './recruit-service'
 
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''")
-}
+
 
 export async function getPublicWorkshopItems(type?: WorkshopItemType): Promise<WorkshopItem[]> {
   const db = await getDb()
@@ -18,7 +16,8 @@ export async function getPublicWorkshopItems(type?: WorkshopItemType): Promise<W
   `
   
   if (type) {
-    query += ` AND w.type = '${type}'`
+    const safeType = safeSqlString(type)
+    query += ` AND w.type = '${safeType}'`
   }
   
   query += ` ORDER BY w.downloads DESC, w.created_at DESC`
@@ -54,12 +53,13 @@ export async function uploadToWorkshop(
   isPublic: boolean = true
 ): Promise<WorkshopItem | null> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   
   // 获取原始数据
   let data: any = null
   
   if (type === 'character') {
-    const chars = await getCharactersByUser(userId)
+    const chars = await getCharactersByUser(safeUserId)
     const char = chars.find(c => c.name === originalId)
     if (!char) return null
     data = {
@@ -69,8 +69,9 @@ export async function uploadToWorkshop(
     }
   } else if (type === 'worldview') {
     // 获取世界观数据
+    const safeOriginalId = safeInt(originalId)
     const result = db.exec(
-      `SELECT description, content, is_ai_generated FROM worldviews WHERE id = ${parseInt(originalId)} AND user_id = ${userId}`
+      `SELECT description, content, is_ai_generated FROM worldviews WHERE id = ${safeOriginalId} AND user_id = ${safeUserId}`
     )
     
     if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -87,18 +88,18 @@ export async function uploadToWorkshop(
   
   if (!data) return null
   
-  const nameEscaped = escapeSql(name)
-  const descriptionEscaped = escapeSql(description)
-  const dataJson = escapeSql(JSON.stringify(data))
+  const nameEscaped = safeSqlString(name)
+  const descriptionEscaped = safeSqlString(description)
+  const dataJson = safeSqlString(JSON.stringify(data))
   
   db.run(
     `INSERT INTO workshop_items (type, user_id, original_id, name, description, data, is_public) 
-     VALUES ('${type}', ${userId}, '${escapeSql(originalId)}', '${nameEscaped}', '${descriptionEscaped}', '${dataJson}', ${isPublic ? 1 : 0})`
+     VALUES ('${safeSqlString(type)}', ${safeUserId}, '${safeSqlString(originalId)}', '${nameEscaped}', '${descriptionEscaped}', '${dataJson}', ${isPublic ? 1 : 0})`
   )
   
   saveDb()
   
-  const result = db.exec(`SELECT id FROM workshop_items WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)
+  const result = db.exec(`SELECT id FROM workshop_items WHERE user_id = ${safeUserId} ORDER BY id DESC LIMIT 1`)
   const id = result[0].values[0][0] as number
   
   return {
@@ -121,10 +122,11 @@ export async function downloadFromWorkshop(
   userId: number
 ): Promise<{ success: boolean; item?: any; error?: string }> {
   const db = await getDb()
+  const safeItemId = safeInt(itemId)
   
   // 获取工坊项目
   const result = db.exec(
-    `SELECT type, data FROM workshop_items WHERE id = ${itemId}`
+    `SELECT type, data FROM workshop_items WHERE id = ${safeItemId}`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -135,7 +137,7 @@ export async function downloadFromWorkshop(
   const data = JSON.parse(result[0].values[0][1] as string)
   
   // 增加下载计数
-  db.run(`UPDATE workshop_items SET downloads = downloads + 1 WHERE id = ${itemId}`)
+  db.run(`UPDATE workshop_items SET downloads = downloads + 1 WHERE id = ${safeItemId}`)
   saveDb()
   
   return { success: true, item: { type, data } }
@@ -171,8 +173,10 @@ export async function getMyUploads(userId: number): Promise<WorkshopItem[]> {
 
 export async function deleteWorkshopItem(itemId: number, userId: number): Promise<boolean> {
   const db = await getDb()
+  const safeItemId = safeInt(itemId)
+  const safeUserId = safeInt(userId)
   
-  db.run(`DELETE FROM workshop_items WHERE id = ${itemId} AND user_id = ${userId}`)
+  db.run(`DELETE FROM workshop_items WHERE id = ${safeItemId} AND user_id = ${safeUserId}`)
   saveDb()
   
   return true

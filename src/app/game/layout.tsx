@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/game/BottomNav'
 import StatusBar from '@/components/game/StatusBar'
 import Link from 'next/link'
-import { LogOut, Save, Settings } from 'lucide-react'
+import { LogOut, Save, Settings, Menu, X } from 'lucide-react'
 import { GameStateProvider } from './GameStateContext'
 
 interface GameState {
@@ -37,6 +37,7 @@ export default function GameLayout({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   const fetchGameState = useCallback(async () => {
     try {
@@ -134,8 +135,8 @@ export default function GameLayout({ children }: { children: ReactNode }) {
           weather={gameState.weather}
         />
 
-        {/* 右上角按钮组 */}
-        <div className="fixed top-20 right-4 z-30 flex flex-col gap-2">
+        {/* 右上角按钮组 - Desktop */}
+        <div className="hidden md:flex fixed top-20 right-4 z-30 flex-col gap-2">
           {/* 用户名显示 */}
           {username && (
             <div className="glass-card px-3 py-1.5 text-xs text-purple-300 text-right">
@@ -173,7 +174,61 @@ export default function GameLayout({ children }: { children: ReactNode }) {
           </button>
         </div>
 
-        <main className="pt-24 pb-32 px-4 min-h-screen">
+        {/* Mobile: Hamburger menu button */}
+        <div className="md:hidden fixed top-16 right-2 z-30">
+          <button
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className="glass-card p-2.5 hover:bg-white/10 transition-all"
+            aria-label="菜单"
+          >
+            {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+
+        {/* Mobile: Dropdown menu */}
+        {showMobileMenu && (
+          <div className="md:hidden fixed top-28 right-2 z-30 glass-card p-3 min-w-[150px]">
+            <div className="flex flex-col gap-2">
+              {username && (
+                <div className="px-3 py-2 text-xs text-purple-300 border-b border-white/10">
+                  👤 {username}
+                </div>
+              )}
+              
+              <button
+                onClick={() => {
+                  quickSave()
+                  setShowMobileMenu(false)
+                }}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-green-500/20 rounded-lg transition-all disabled:opacity-50 text-left"
+              >
+                <Save size={16} className={isSaving ? 'animate-pulse' : ''} />
+                {isSaving ? '保存中...' : '保存'}
+              </button>
+              
+              <Link
+                href="/game/settings"
+                onClick={() => setShowMobileMenu(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-amber-500/20 rounded-lg transition-all"
+              >
+                <Settings size={16} />
+                设置
+              </Link>
+              
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-red-500/20 rounded-lg transition-all text-red-300 disabled:opacity-50 text-left"
+              >
+                <LogOut size={16} />
+                {isLoggingOut ? '登出中...' : '登出'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <main className="pt-20 sm:pt-24 pb-24 sm:pb-32 px-3 sm:px-4 min-h-screen">
           <GameStateProvider onRefresh={fetchGameState}>
             {children}
           </GameStateProvider>

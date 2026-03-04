@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { downloadFromWorkshop } from '@/lib/services/workshop-service'
 import { getCharactersByUser, createCharacter } from '@/lib/services/recruit-service'
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,8 +46,9 @@ export async function POST(request: NextRequest) {
       
       // 查找空房间
       const db = await getDb()
+      const safeUserId = safeInt(session.userId)
       const roomResult = db.exec(
-        `SELECT id FROM rooms WHERE user_id = ${session.userId} AND character_name IS NULL LIMIT 1`
+        `SELECT id FROM rooms WHERE user_id = ${safeUserId} AND character_name IS NULL LIMIT 1`
       )
       
       const roomId = (roomResult && roomResult.length > 0 && roomResult[0].values) 
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       // 设置头像
       if (data.portraitUrl) {
         db.run(
-          `UPDATE characters SET portrait_url = '${data.portraitUrl.replace(/'/g, "''")}' WHERE name = '${newName.replace(/'/g, "''")}'`
+          `UPDATE characters SET portrait_url = '${safeSqlString(data.portraitUrl)}' WHERE name = '${safeSqlString(newName)}'`
         )
         saveDb()
       }
@@ -84,16 +85,17 @@ export async function POST(request: NextRequest) {
     } else if (type === 'worldview') {
       // 导入世界观
       const db = await getDb()
-      const nameEscaped = data.description.replace(/'/g, "''")
-      const contentEscaped = data.content.replace(/'/g, "''")
+      const safeUserId = safeInt(session.userId)
+      const nameEscaped = safeSqlString(data.description)
+      const contentEscaped = safeSqlString(data.content)
       
       db.run(
         `INSERT INTO worldviews (user_id, name, description, content, is_ai_generated) 
-         VALUES (${session.userId}, '导入的世界观', '${nameEscaped}', '${contentEscaped}', ${data.isAiGenerated ? 1 : 0})`
+         VALUES (${safeUserId}, '导入的世界观', '${nameEscaped}', '${contentEscaped}', ${data.isAiGenerated ? 1 : 0})`
       )
       saveDb()
       
-      const result = db.exec(`SELECT id FROM worldviews WHERE user_id = ${session.userId} ORDER BY id DESC LIMIT 1`)
+      const result = db.exec(`SELECT id FROM worldviews WHERE user_id = ${safeUserId} ORDER BY id DESC LIMIT 1`)
       const worldviewId = result[0].values[0][0] as number
       
       return NextResponse.json({ 

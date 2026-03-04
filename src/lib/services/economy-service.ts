@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 
 export interface GameState {
   userId: number
@@ -124,7 +124,8 @@ export async function updateGameState(
       setClauses.push(`current_job = ${jobJson}`)
     }
     
-    db.run(`UPDATE users SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ${userId}`)
+    const safeUserId = safeInt(userId)
+    db.run(`UPDATE users SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ${safeUserId}`)
     saveDb()
   }
 }

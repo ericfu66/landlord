@@ -12,6 +12,7 @@ import {
   HISTORY_TEMPLATE
 } from '@/prompts/preset-defaults'
 import { InteractionMode, PresetEntry } from '@/types/preset'
+import { ArrowLeft } from 'lucide-react'
 
 const MODE_LABELS: Record<InteractionMode, string> = {
   daily: '日常',
@@ -121,23 +122,28 @@ export default function PresetsPage() {
   }
 
   return (
-    <main className="min-h-screen p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <main className="min-h-screen p-3 sm:p-6">
+      <div className="max-w-3xl mx-auto space-y-3 sm:space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">互动预设</h1>
-          <button onClick={() => router.back()} className="text-gray-400 hover:text-white">
-            返回
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => router.back()} 
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors touch-target-sm"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-xl sm:text-2xl font-bold">互动预设</h1>
+          </div>
         </div>
 
-        <div className="glass-card p-4">
-          <div className="flex flex-wrap gap-2">
+        <div className="glass-card p-3 sm:p-4">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {(['daily', 'date', 'flirt', 'free'] as InteractionMode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 disabled={loading}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm touch-target-sm ${
                   mode === m ? 'bg-purple-600 text-white' : 'bg-white/10 hover:bg-white/20'
                 }`}
               >
@@ -154,7 +160,7 @@ export default function PresetsPage() {
         </div>
 
         {message && (
-          <p className={`text-sm ${message.includes('成功') ? 'text-green-400' : 'text-red-400'}`}>
+          <p className={`text-xs sm:text-sm ${message.includes('成功') ? 'text-green-400' : 'text-red-400'}`}>
             {message}
           </p>
         )}

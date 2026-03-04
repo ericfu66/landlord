@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getDb } from '@/lib/db'
+import { getDb, safeInt } from '@/lib/db'
 
 export async function GET() {
   const session = await getSession()
@@ -10,6 +10,7 @@ export async function GET() {
   }
   
   const db = await getDb()
+  const safeUserId = safeInt(session.userId)
   const result = db.exec(`
     SELECT 
       id, username, role, api_config,
@@ -17,7 +18,7 @@ export async function GET() {
       discord_username, discord_avatar,
       needs_onboarding, onboarding_step
     FROM users 
-    WHERE id = ${session.userId}
+    WHERE id = ${safeUserId}
   `)
 
   if (!result || !result[0]?.values?.length) {

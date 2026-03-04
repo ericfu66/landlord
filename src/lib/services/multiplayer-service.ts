@@ -1,11 +1,9 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { MultiplayerSettings, VisitRecord, VisitableUser, RemoteBuilding, RemoteCharacter } from '@/types/multiplayer'
 import { getCharactersByUser } from './recruit-service'
 import { getRoomsByUser } from './building-service'
 
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''")
-}
+
 
 export async function getMultiplayerSettings(userId: number): Promise<MultiplayerSettings> {
   const db = await getDb()
@@ -44,6 +42,7 @@ export async function updateMultiplayerSettings(
   settings: Partial<MultiplayerSettings>
 ): Promise<MultiplayerSettings> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   
   const sets: string[] = []
   if (settings.allowVisits !== undefined) sets.push(`allow_visits = ${settings.allowVisits ? 1 : 0}`)
@@ -51,11 +50,11 @@ export async function updateMultiplayerSettings(
   if (settings.allowCharacterInteractions !== undefined) sets.push(`allow_character_interactions = ${settings.allowCharacterInteractions ? 1 : 0}`)
   
   if (sets.length > 0) {
-    db.run(`UPDATE multiplayer_settings SET ${sets.join(', ')} WHERE user_id = ${userId}`)
+    db.run(`UPDATE multiplayer_settings SET ${sets.join(', ')} WHERE user_id = ${safeUserId}`)
     saveDb()
   }
   
-  return getMultiplayerSettings(userId)
+  return getMultiplayerSettings(safeUserId)
 }
 
 export async function getVisitableUsers(): Promise<VisitableUser[]> {
@@ -87,14 +86,15 @@ export async function getVisitableUsers(): Promise<VisitableUser[]> {
 
 export async function getRemoteBuilding(userId: number, visitorUserId: number): Promise<RemoteBuilding | null> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   
   // 检查是否允许访问
-  const settings = await getMultiplayerSettings(userId)
+  const settings = await getMultiplayerSettings(safeUserId)
   if (!settings.allowVisits) {
     return null
   }
   
-  const rooms = await getRoomsByUser(userId)
+  const rooms = await getRoomsByUser(safeUserId)
   
   // 按楼层分组
   const floors: RemoteBuilding['floors'] = []
@@ -119,7 +119,7 @@ export async function getRemoteBuilding(userId: number, visitorUserId: number): 
     if (room.characterName) {
       roomData.characterName = room.characterName
       const charResult = db.exec(
-        `SELECT portrait_url FROM characters WHERE name = '${escapeSql(room.characterName)}' AND user_id = ${userId}`
+        `SELECT portrait_url FROM characters WHERE name = '${safeSqlString(room.characterName)}' AND user_id = ${safeUserId}`
       )
       if (charResult && charResult.length > 0 && charResult[0].values) {
         roomData.characterPortrait = charResult[0].values[0][0] as string
@@ -175,9 +175,11 @@ export async function getRemoteCharacter(userId: number, characterName: string):
 
 export async function recordVisit(hostUserId: number, visitorUserId: number): Promise<void> {
   const db = await getDb()
+  const safeHostUserId = safeInt(hostUserId)
+  const safeVisitorUserId = safeInt(visitorUserId)
   
   db.run(
-    `INSERT INTO multiplayer_visits (host_user_id, visitor_user_id) VALUES (${hostUserId}, ${visitorUserId})`
+    `INSERT INTO multiplayer_visits (host_user_id, visitor_user_id) VALUES (${safeHostUserId}, ${safeVisitorUserId})`
   )
   saveDb()
 }
@@ -185,11 +187,12 @@ export async function recordVisit(hostUserId: number, visitorUserId: number): Pr
 export async function getVisitHistory(userId: number): Promise<VisitRecord[]> {
   const db = await getDb()
   
+  const safeUserId = safeInt(userId)
   const result = db.exec(`
     SELECT v.id, v.host_user_id, v.visitor_user_id, v.visited_at, u.username as visitor_name
     FROM multiplayer_visits v
     JOIN users u ON v.visitor_user_id = u.id
-    WHERE v.host_user_id = ${userId}
+    WHERE v.host_user_id = ${safeUserId}
     ORDER BY v.visited_at DESC
     LIMIT 20
   `)

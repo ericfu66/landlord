@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateUser } from '@/lib/auth/repo'
 import { setSession } from '@/lib/auth/session'
-import { getDb } from '@/lib/db'
+import { getDb, safeInt } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,10 +26,11 @@ export async function POST(request: NextRequest) {
     
     // 查询用户的 onboarding 状态
     const db = await getDb()
+    const safeUserId = safeInt(result.id)
     const userData = db.exec(`
       SELECT needs_onboarding, role 
       FROM users 
-      WHERE id = ${result.id}
+      WHERE id = ${safeUserId}
     `)
     
     let needsOnboarding = false

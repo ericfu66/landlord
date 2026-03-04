@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
-import { getDb } from '@/lib/db'
+import { getDb, safeInt } from '@/lib/db'
 
 // 获取单条新闻详情
 export async function GET(
@@ -14,17 +14,18 @@ export async function GET(
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const newsId = parseInt(params.id)
-    if (isNaN(newsId)) {
+    const newsId = safeInt(params.id)
+    if (newsId <= 0) {
       return NextResponse.json({ error: '无效的新闻ID' }, { status: 400 })
     }
 
     const db = await getDb()
+    const safeUserId = safeInt(session.userId)
     
     const result = db.exec(`
       SELECT id, user_id, date, title, content, world_news, tenant_events, weather, is_read, created_at
       FROM daily_news
-      WHERE id = ${newsId} AND user_id = ${session.userId}
+      WHERE id = ${newsId} AND user_id = ${safeUserId}
     `)
 
     if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {

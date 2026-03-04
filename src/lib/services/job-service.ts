@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
 import { getUserById, incrementApiCalls } from '@/lib/auth/repo'
 
@@ -105,13 +105,15 @@ export async function startJob(userId: number, job: Job): Promise<void> {
 
 export async function quitJob(userId: number): Promise<void> {
   const db = await getDb()
-  db.run(`UPDATE users SET current_job = NULL WHERE id = ${userId}`)
+  const safeUserId = safeInt(userId)
+  db.run(`UPDATE users SET current_job = NULL WHERE id = ${safeUserId}`)
   saveDb()
 }
 
 export async function getCurrentJob(userId: number): Promise<{ name: string; salary: number; daysWorked: number } | null> {
   const db = await getDb()
-  const result = db.exec(`SELECT current_job FROM users WHERE id = ${userId}`)
+  const safeUserId = safeInt(userId)
+  const result = db.exec(`SELECT current_job FROM users WHERE id = ${safeUserId}`)
   
   if (!result || result.length === 0 || !result[0].values || !result[0].values[0][0]) {
     return null

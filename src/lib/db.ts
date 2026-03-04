@@ -55,6 +55,7 @@ async function autoMigrate(database: any): Promise<void> {
   const migrations = [
     // 角色表字段
     `ALTER TABLE characters ADD COLUMN worldview_id INTEGER`,
+    `ALTER TABLE characters ADD COLUMN portrait_url TEXT`,
     // 用户表OAuth字段
     `ALTER TABLE users ADD COLUMN discord_id TEXT UNIQUE`,
     `ALTER TABLE users ADD COLUMN discord_username TEXT`,
@@ -126,4 +127,54 @@ export async function runMigrations(): Promise<void> {
 
 export function generateId(): string {
   return crypto.randomBytes(16).toString('hex')
+}
+
+/**
+ * 安全的SQL参数处理函数
+ * 用于防止SQL注入攻击
+ */
+
+// 验证整数，返回安全的整数值或默认值
+export function safeInt(value: unknown, defaultValue: number = 0): number {
+  const num = Number(value)
+  if (isNaN(num) || !isFinite(num)) {
+    return defaultValue
+  }
+  return Math.floor(num)
+}
+
+// 验证并转义SQL字符串
+export function safeSqlString(value: unknown): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  return String(value).replace(/'/g, "''")
+}
+
+// 验证日期字符串格式 (YYYY-MM-DD)
+export function safeDateString(value: unknown): string {
+  if (typeof value !== 'string') {
+    return new Date().toISOString().split('T')[0]
+  }
+  // 只允许数字和连字符
+  const cleaned = value.replace(/[^0-9-]/g, '')
+  // 验证格式
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    return new Date().toISOString().split('T')[0]
+  }
+  return cleaned
+}
+
+// 验证表名/列名（只允许字母、数字、下划线）
+export function safeIdentifier(value: unknown): string {
+  if (typeof value !== 'string') {
+    return ''
+  }
+  const cleaned = value.replace(/[^a-zA-Z0-9_]/g, '')
+  // 防止SQL关键字
+  const reservedWords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TABLE', 'FROM', 'WHERE']
+  if (reservedWords.includes(cleaned.toUpperCase())) {
+    return ''
+  }
+  return cleaned
 }

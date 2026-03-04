@@ -15,6 +15,102 @@
   --cream: #faf6eb;
 }
 
+/* Mobile-first responsive utilities */
+@layer utilities {
+  /* Safe area padding for mobile devices */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Responsive text utilities */
+  .text-responsive-xs {
+    font-size: clamp(0.65rem, 2vw, 0.75rem);
+  }
+  
+  .text-responsive-sm {
+    font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+  }
+  
+  .text-responsive-base {
+    font-size: clamp(0.875rem, 3vw, 1rem);
+  }
+  
+  .text-responsive-lg {
+    font-size: clamp(1rem, 4vw, 1.125rem);
+  }
+  
+  .text-responsive-xl {
+    font-size: clamp(1.25rem, 5vw, 1.5rem);
+  }
+  
+  .text-responsive-2xl {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+  }
+  
+  .text-responsive-3xl {
+    font-size: clamp(1.875rem, 8vw, 2.5rem);
+  }
+  
+  .text-responsive-4xl {
+    font-size: clamp(2.25rem, 10vw, 3.5rem);
+  }
+  
+  /* Touch-friendly tap targets */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .touch-target-sm {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  
+  /* Responsive padding utilities */
+  .p-responsive {
+    padding: clamp(0.5rem, 3vw, 1.5rem);
+  }
+  
+  .px-responsive {
+    padding-left: clamp(0.75rem, 4vw, 1.5rem);
+    padding-right: clamp(0.75rem, 4vw, 1.5rem);
+  }
+  
+  .py-responsive {
+    padding-top: clamp(0.5rem, 2vh, 1rem);
+    padding-bottom: clamp(0.5rem, 2vh, 1rem);
+  }
+  
+  /* Mobile container */
+  .container-mobile {
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: clamp(0.75rem, 4vw, 1.5rem);
+    padding-right: clamp(0.75rem, 4vw, 1.5rem);
+  }
+  
+  /* Prevent text overflow */
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
 @font-face {
   font-family: 'Playfair Display';
   font-style: normal;

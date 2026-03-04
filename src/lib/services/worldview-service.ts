@@ -1,10 +1,8 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { WorldView, WorldViewTemplate } from '@/types/worldview'
 import { createChatCompletion } from '@/lib/ai/client'
 
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''")
-}
+
 
 export async function getUserWorldViews(userId: number): Promise<WorldView[]> {
   const db = await getDb()
@@ -59,19 +57,20 @@ export async function createWorldView(
   isAiGenerated: boolean = false
 ): Promise<WorldView> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   
-  const name = escapeSql(template.name)
-  const description = escapeSql(template.description)
-  const content = escapeSql(template.content)
+  const name = safeSqlString(template.name)
+  const description = safeSqlString(template.description)
+  const content = safeSqlString(template.content)
   
   db.run(
     `INSERT INTO worldviews (user_id, name, description, content, is_ai_generated) 
-     VALUES (${userId}, '${name}', '${description}', '${content}', ${isAiGenerated ? 1 : 0})`
+     VALUES (${safeUserId}, '${name}', '${description}', '${content}', ${isAiGenerated ? 1 : 0})`
   )
   
   saveDb()
   
-  const result = db.exec(`SELECT id FROM worldviews WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)
+  const result = db.exec(`SELECT id FROM worldviews WHERE user_id = ${safeUserId} ORDER BY id DESC LIMIT 1`)
   const id = result[0].values[0][0] as number
   
   return {
@@ -92,15 +91,17 @@ export async function updateWorldView(
   updates: Partial<WorldViewTemplate>
 ): Promise<WorldView | null> {
   const db = await getDb()
+  const safeId = safeInt(id)
+  const safeUserId = safeInt(userId)
   
   const sets: string[] = []
-  if (updates.name !== undefined) sets.push(`name = '${escapeSql(updates.name)}'`)
-  if (updates.description !== undefined) sets.push(`description = '${escapeSql(updates.description)}'`)
-  if (updates.content !== undefined) sets.push(`content = '${escapeSql(updates.content)}'`)
+  if (updates.name !== undefined) sets.push(`name = '${safeSqlString(updates.name)}'`)
+  if (updates.description !== undefined) sets.push(`description = '${safeSqlString(updates.description)}'`)
+  if (updates.content !== undefined) sets.push(`content = '${safeSqlString(updates.content)}'`)
   sets.push(`updated_at = CURRENT_TIMESTAMP`)
   
   db.run(
-    `UPDATE worldviews SET ${sets.join(', ')} WHERE id = ${id} AND user_id = ${userId}`
+    `UPDATE worldviews SET ${sets.join(', ')} WHERE id = ${safeId} AND user_id = ${safeUserId}`
   )
   
   saveDb()
@@ -111,15 +112,18 @@ export async function updateWorldView(
 export async function deleteWorldView(id: number, userId: number): Promise<boolean> {
   const db = await getDb()
   
+  const safeId = safeInt(id)
+  const safeUserId = safeInt(userId)
+  
   // 检查是否有角色使用此世界观
-  const charResult = db.exec(`SELECT COUNT(*) FROM characters WHERE worldview_id = ${id}`)
+  const charResult = db.exec(`SELECT COUNT(*) FROM characters WHERE worldview_id = ${safeId}`)
   const count = charResult[0].values[0][0] as number
   
   if (count > 0) {
     return false // 不能删除正在使用的世界观
   }
   
-  db.run(`DELETE FROM worldviews WHERE id = ${id} AND user_id = ${userId}`)
+  db.run(`DELETE FROM worldviews WHERE id = ${safeId} AND user_id = ${safeUserId}`)
   saveDb()
   
   return true

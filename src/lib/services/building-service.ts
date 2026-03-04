@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { Room, RoomPlacement, BUILD_COSTS, FLOOR_CELLS, BuildCost } from '@/types/room'
 
 export { BUILD_COSTS, FLOOR_CELLS, type BuildCost }
@@ -92,8 +92,9 @@ export async function createRoom(
   name?: string
 ): Promise<Room | null> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
 
-  const existingRooms = await getRoomsByUser(userId)
+  const existingRooms = await getRoomsByUser(safeUserId)
   const placements = existingRooms.map((r) => ({
     floor: r.floor,
     positionStart: r.positionStart,
@@ -105,17 +106,21 @@ export async function createRoom(
     return null
   }
 
-  const desc = description ? `'${description.replace(/'/g, "''")}'` : 'NULL'
-  const roomName = name ? `'${name.replace(/'/g, "''")}'` : 'NULL'
+  const safeFloor = safeInt(floor)
+  const safePositionStart = safeInt(positionStart)
+  const safePositionEnd = safeInt(positionEnd)
+  const safeRoomType = safeSqlString(roomType)
+  const desc = description ? `'${safeSqlString(description)}'` : 'NULL'
+  const roomName = name ? `'${safeSqlString(name)}'` : 'NULL'
   
   db.run(
     `INSERT INTO rooms (user_id, floor, position_start, position_end, room_type, description, name, is_outdoor)
-     VALUES (${userId}, ${floor}, ${positionStart}, ${positionEnd}, '${roomType}', ${desc}, ${roomName}, 0)`
+     VALUES (${safeUserId}, ${safeFloor}, ${safePositionStart}, ${safePositionEnd}, '${safeRoomType}', ${desc}, ${roomName}, 0)`
   )
   saveDb()
 
   // Get the ID of the inserted room
-  const result = db.exec(`SELECT id FROM rooms WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)
+  const result = db.exec(`SELECT id FROM rooms WHERE user_id = ${safeUserId} ORDER BY id DESC LIMIT 1`)
   const id = result[0].values[0][0] as number
 
   return {
@@ -149,9 +154,10 @@ export async function updateRoomType(
 
 export async function deleteRoom(roomId: number): Promise<number> {
   const db = await getDb()
+  const safeRoomId = safeInt(roomId)
   
   const result = db.exec(
-    `SELECT room_type, position_end - position_start as cells FROM rooms WHERE id = ${roomId}`
+    `SELECT room_type, position_end - position_start as cells FROM rooms WHERE id = ${safeRoomId}`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -162,7 +168,7 @@ export async function deleteRoom(roomId: number): Promise<number> {
   const roomType = row[0] as string
   const cells = row[1] as number
   
-  db.run(`DELETE FROM rooms WHERE id = ${roomId}`)
+  db.run(`DELETE FROM rooms WHERE id = ${safeRoomId}`)
   saveDb()
   
   return calculateDemolishRefund(roomType, cells)
@@ -170,8 +176,9 @@ export async function deleteRoom(roomId: number): Promise<number> {
 
 export async function getMaxFloor(userId: number): Promise<number> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
   const result = db.exec(
-    `SELECT MAX(floor) FROM rooms WHERE user_id = ${userId}`
+    `SELECT MAX(floor) FROM rooms WHERE user_id = ${safeUserId}`
   )
 
   if (!result || result.length === 0 || !result[0].values || result[0].values[0][0] === null) {

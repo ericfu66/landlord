@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { Preset, PresetEntry, PresetConfig, InteractionMode } from '@/types/preset'
 import { generateId } from '@/lib/db'
 import { DEFAULT_PRESETS } from './preset-client'
@@ -44,8 +44,10 @@ export function composeMessages(
 
 export async function getPreset(userId: number, presetType: InteractionMode): Promise<Preset | null> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
+  const safePresetType = safeSqlString(presetType)
   const result = db.exec(
-    `SELECT id, user_id, preset_type, preset_data FROM presets WHERE user_id = ${userId} AND preset_type = '${presetType}'`
+    `SELECT id, user_id, preset_type, preset_data FROM presets WHERE user_id = ${safeUserId} AND preset_type = '${safePresetType}'`
   )
 
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -67,26 +69,29 @@ export async function savePreset(
   entries: PresetEntry[]
 ): Promise<Preset> {
   const db = await getDb()
+  const safeUserId = safeInt(userId)
+  const safePresetType = safeSqlString(presetType)
   
-  const existing = await getPreset(userId, presetType)
+  const existing = await getPreset(safeUserId, presetType)
   
   if (existing) {
-    const entriesJson = JSON.stringify({ entries }).replace(/'/g, "''")
+    const entriesJson = safeSqlString(JSON.stringify({ entries }))
+    const safeExistingId = safeInt(existing.id)
     db.run(
-      `UPDATE presets SET preset_data = '${entriesJson}' WHERE id = ${existing.id}`
+      `UPDATE presets SET preset_data = '${entriesJson}' WHERE id = ${safeExistingId}`
     )
     saveDb()
     return { ...existing, presetData: { entries } }
   }
 
-  const presetDataJson = JSON.stringify({ entries }).replace(/'/g, "''")
+  const presetDataJson = safeSqlString(JSON.stringify({ entries }))
   db.run(
-    `INSERT INTO presets (user_id, preset_type, preset_data) VALUES (${userId}, '${presetType}', '${presetDataJson}')`
+    `INSERT INTO presets (user_id, preset_type, preset_data) VALUES (${safeUserId}, '${safePresetType}', '${presetDataJson}')`
   )
   saveDb()
 
   // Get the ID of the inserted preset
-  const result = db.exec(`SELECT id FROM presets WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)
+  const result = db.exec(`SELECT id FROM presets WHERE user_id = ${safeUserId} ORDER BY id DESC LIMIT 1`)
   const id = result[0].values[0][0] as number
 
   return {

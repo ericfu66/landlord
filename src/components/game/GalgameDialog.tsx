@@ -344,8 +344,8 @@ export default function GalgameDialog({
         </svg>
       </button>
 
-      {/* Mode selector - top right */}
-      <div className="absolute top-20 right-4 z-30 flex gap-2">
+      {/* Mode selector - top center */}
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 flex flex-wrap justify-center gap-2">
         {(['daily', 'date', 'flirt', 'free'] as const).map((m) => {
           const info = getModeInfo(m, favorability)
           return (

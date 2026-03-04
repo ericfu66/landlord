@@ -188,27 +188,27 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-2 sm:px-0">
       {/* 消息提示 */}
       {message && (
-        <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all ${
+        <div className={`fixed top-20 sm:top-24 left-1/2 -translate-x-1/2 z-50 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all text-sm ${
           message.type === 'success' 
             ? 'bg-green-500/90 text-white' 
             : 'bg-red-500/90 text-white'
         }`}>
-          {message.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+          {message.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
           {message.text}
         </div>
       )}
 
-      <div className="glass-card p-6">
+      <div className="glass-card p-4 sm:p-6">
         {/* 头部 */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
-              <Settings className="text-amber-400" size={20} />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+              <Settings className="text-amber-400" size={18} />
             </div>
-            <h1 className="text-2xl font-bold">设置</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">设置</h1>
           </div>
           
           <div className="flex gap-2">
@@ -216,9 +216,9 @@ export default function SettingsPage() {
             <button
               onClick={quickSave}
               disabled={isSaving}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5 text-xs sm:text-sm touch-target"
             >
-              <Save size={16} />
+              <Save size={14} />
               {isSaving ? '保存中...' : '保存游戏'}
             </button>
             
@@ -226,55 +226,55 @@ export default function SettingsPage() {
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5 text-xs sm:text-sm touch-target"
             >
-              <LogOut size={16} />
+              <LogOut size={14} />
               {isLoggingOut ? '登出中...' : '登出'}
             </button>
           </div>
         </div>
 
         {/* AI 设置区域 */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 pb-4 border-b border-white/10">
-            <span className="text-lg">🤖</span>
-            <h2 className="text-lg font-semibold">AI 配置</h2>
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 pb-3 sm:pb-4 border-b border-white/10">
+            <span className="text-base sm:text-lg">🤖</span>
+            <h2 className="text-base sm:text-lg font-semibold">AI 配置</h2>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">API Base URL</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">API Base URL</label>
             <input
               type="text"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
               placeholder="https://api.openai.com/v1"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">API Key</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">API Key</label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
               placeholder="sk-..."
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={testConnection}
               disabled={testing}
-              className="px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50"
+              className="flex-1 px-3 sm:px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50 text-xs sm:text-sm touch-target"
             >
               {testing ? '测试中...' : '测试连接'}
             </button>
             <button
               onClick={fetchModels}
               disabled={loading}
-              className="px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50"
+              className="flex-1 px-3 sm:px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50 text-xs sm:text-sm touch-target"
             >
               {loading ? '获取中...' : '获取可用模型'}
             </button>
@@ -282,11 +282,11 @@ export default function SettingsPage() {
 
           {models.length > 0 && (
             <div>
-              <label className="block text-sm font-medium mb-2">选择模型</label>
+              <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">选择模型</label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
               >
                 <option value="">请选择模型</option>
                 {models.map((m) => (
@@ -301,28 +301,26 @@ export default function SettingsPage() {
           <button
             onClick={saveConfig}
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-sm touch-target"
           >
             保存 AI 配置
           </button>
         </div>
 
         {/* 游戏设置区域 */}
-        <div className="mt-8 pt-6 border-t border-white/10 space-y-6">
-          <div className="flex items-center gap-2 pb-4 border-b border-white/10">
-            <span className="text-lg">🎮</span>
-            <h2 className="text-lg font-semibold">游戏设置</h2>
+        <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10 space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 pb-3 sm:pb-4 border-b border-white/10">
+            <span className="text-base sm:text-lg">🎮</span>
+            <h2 className="text-base sm:text-lg font-semibold">游戏设置</h2>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={() => router.push('/game/saves')}
-              className="flex-1 py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center gap-2"
-            >
-              <span>💾</span>
-              管理存档
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/game/saves')}
+            className="w-full py-2.5 sm:py-3 bg-white/10 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-sm touch-target"
+          >
+            <span>💾</span>
+            管理存档
+          </button>
         </div>
       </div>
     </div>

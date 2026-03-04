@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { hashPassword, verifyPassword } from '@/lib/security/password'
 
 export interface User {
@@ -9,10 +9,7 @@ export interface User {
   api_config: string | null
 }
 
-// 辅助函数：转义 SQL 字符串
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''")
-}
+
 
 export async function getUserById(userId: number): Promise<User | null> {
   const db = await getDb()
@@ -37,18 +34,18 @@ export async function getUserById(userId: number): Promise<User | null> {
 export async function createUser(username: string, password: string): Promise<User | null> {
   const db = await getDb()
   
-  const existing = db.exec(`SELECT id FROM users WHERE username = '${escapeSql(username)}'`)
+  const existing = db.exec(`SELECT id FROM users WHERE username = '${safeSqlString(username)}'`)
   if (existing && existing.length > 0 && existing[0].values && existing[0].values.length > 0) {
     return null
   }
   
   const passwordHash = await hashPassword(password)
   
-  db.run(`INSERT INTO users (username, password_hash, role) VALUES ('${escapeSql(username)}', '${escapeSql(passwordHash)}', 'user')`)
+  db.run(`INSERT INTO users (username, password_hash, role) VALUES ('${safeSqlString(username)}', '${safeSqlString(passwordHash)}', 'user')`)
   
   saveDb()
   
-  const result = db.exec(`SELECT id, username, role, is_banned, api_config FROM users WHERE username = '${escapeSql(username)}'`)
+  const result = db.exec(`SELECT id, username, role, is_banned, api_config FROM users WHERE username = '${safeSqlString(username)}'`)
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return null
@@ -68,7 +65,7 @@ export async function authenticateUser(username: string, password: string): Prom
   const db = await getDb()
   
   const result = db.exec(
-    `SELECT id, username, password_hash, role, is_banned, api_config FROM users WHERE username = '${escapeSql(username)}'`
+    `SELECT id, username, password_hash, role, is_banned, api_config FROM users WHERE username = '${safeSqlString(username)}'`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -110,13 +107,15 @@ export async function authenticateUser(username: string, password: string): Prom
 
 export async function updateUserApiConfig(userId: number, config: { baseUrl: string; apiKey: string; model: string }): Promise<void> {
   const db = await getDb()
-  const configJson = JSON.stringify(config).replace(/'/g, "''")
-  db.run(`UPDATE users SET api_config = '${configJson}' WHERE id = ${userId}`)
+  const safeUserId = safeInt(userId)
+  const configJson = safeSqlString(JSON.stringify(config))
+  db.run(`UPDATE users SET api_config = '${configJson}' WHERE id = ${safeUserId}`)
   saveDb()
 }
 
 export async function incrementApiCalls(userId: number): Promise<void> {
   const db = await getDb()
-  db.run(`UPDATE users SET api_calls_count = api_calls_count + 1 WHERE id = ${userId}`)
+  const safeUserId = safeInt(userId)
+  db.run(`UPDATE users SET api_calls_count = api_calls_count + 1 WHERE id = ${safeUserId}`)
   saveDb()
 }

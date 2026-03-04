@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '@/lib/db'
+import { getDb, saveDb, safeInt, safeSqlString, safeDateString } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
 import { incrementApiCalls } from '@/lib/auth/repo'
 
@@ -15,10 +15,7 @@ export interface DailyNews {
   createdAt: string
 }
 
-// 辅助函数：转义 SQL 字符串
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''")
-}
+
 
 /**
  * 获取用户某一天的新闻
@@ -26,12 +23,13 @@ function escapeSql(str: string): string {
 export async function getDailyNews(userId: number, date?: string): Promise<DailyNews | null> {
   const db = await getDb()
   
-  const targetDate = date || new Date().toISOString().split('T')[0]
+  const safeUserId = safeInt(userId)
+  const targetDate = safeDateString(date || new Date().toISOString().split('T')[0])
   
   const result = db.exec(`
     SELECT id, user_id, date, title, content, world_news, tenant_events, weather, is_read, created_at
     FROM daily_news
-    WHERE user_id = ${userId} AND date = '${targetDate}'
+    WHERE user_id = ${safeUserId} AND date = '${targetDate}'
     ORDER BY created_at DESC
     LIMIT 1
   `)
@@ -61,12 +59,15 @@ export async function getDailyNews(userId: number, date?: string): Promise<Daily
 export async function getNewsList(userId: number, limit: number = 30): Promise<DailyNews[]> {
   const db = await getDb()
   
+  const safeUserId = safeInt(userId)
+  const safeLimit = Math.min(Math.max(safeInt(limit), 1), 100) // 限制在1-100之间
+  
   const result = db.exec(`
     SELECT id, user_id, date, title, content, world_news, tenant_events, weather, is_read, created_at
     FROM daily_news
-    WHERE user_id = ${userId}
+    WHERE user_id = ${safeUserId}
     ORDER BY date DESC
-    LIMIT ${limit}
+    LIMIT ${safeLimit}
   `)
 
   if (!result || result.length === 0 || !result[0].values) {
@@ -93,10 +94,12 @@ export async function getNewsList(userId: number, limit: number = 30): Promise<D
 export async function markNewsAsRead(newsId: number): Promise<void> {
   const db = await getDb()
   
+  const safeNewsId = safeInt(newsId)
+  
   db.run(`
     UPDATE daily_news
     SET is_read = TRUE
-    WHERE id = ${newsId}
+    WHERE id = ${safeNewsId}
   `)
   
   saveDb()
@@ -190,13 +193,15 @@ ${newsData.worldNews.map((news, i) => `${i + 1}. ${news}`).join('\n')}
 ${newsData.tenantEvents.map((event, i) => `${i + 1}. ${event}`).join('\n')}`
 
     // 保存到数据库
-    const worldNewsJson = JSON.stringify(newsData.worldNews).replace(/'/g, "''")
-    const tenantEventsJson = JSON.stringify(newsData.tenantEvents).replace(/'/g, "''")
+    const safeUserId = safeInt(userId)
+    const safeToday = safeDateString(today)
+    const worldNewsJson = safeSqlString(JSON.stringify(newsData.worldNews))
+    const tenantEventsJson = safeSqlString(JSON.stringify(newsData.tenantEvents))
     
     db.run(`
       INSERT INTO daily_news (user_id, date, title, content, world_news, tenant_events, weather)
-      VALUES (${userId}, '${today}', '${escapeSql(newsData.title)}', '${escapeSql(fullContent)}', 
-              '${worldNewsJson}', '${tenantEventsJson}', '${escapeSql(weather)}')
+      VALUES (${safeUserId}, '${safeToday}', '${safeSqlString(newsData.title)}', '${safeSqlString(fullContent)}', 
+              '${worldNewsJson}', '${tenantEventsJson}', '${safeSqlString(weather)}')
     `)
     
     saveDb()
@@ -215,12 +220,13 @@ ${newsData.tenantEvents.map((event, i) => `${i + 1}. ${event}`).join('\n')}`
 export async function hasUnreadNews(userId: number): Promise<boolean> {
   const db = await getDb()
   
-  const today = new Date().toISOString().split('T')[0]
+  const safeUserId = safeInt(userId)
+  const today = safeDateString(new Date().toISOString().split('T')[0])
   
   const result = db.exec(`
     SELECT COUNT(*) 
     FROM daily_news
-    WHERE user_id = ${userId} AND date = '${today}' AND is_read = FALSE
+    WHERE user_id = ${safeUserId} AND date = '${today}' AND is_read = FALSE
   `)
 
   if (!result || result.length === 0 || !result[0].values) {
@@ -236,13 +242,16 @@ export async function hasUnreadNews(userId: number): Promise<boolean> {
 export async function cleanupOldNews(userId: number, daysToKeep: number = 30): Promise<void> {
   const db = await getDb()
   
+  const safeUserId = safeInt(userId)
+  const safeDaysToKeep = Math.min(Math.max(safeInt(daysToKeep), 1), 365) // 限制在1-365天
+  
   const cutoffDate = new Date()
-  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
-  const cutoffDateStr = cutoffDate.toISOString().split('T')[0]
+  cutoffDate.setDate(cutoffDate.getDate() - safeDaysToKeep)
+  const cutoffDateStr = safeDateString(cutoffDate.toISOString().split('T')[0])
   
   db.run(`
     DELETE FROM daily_news
-    WHERE user_id = ${userId} AND date < '${cutoffDateStr}'
+    WHERE user_id = ${safeUserId} AND date < '${cutoffDateStr}'
   `)
   
   saveDb()

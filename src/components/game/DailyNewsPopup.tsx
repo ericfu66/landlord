@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Newspaper, X, ChevronRight, Calendar } from 'lucide-react'
+import { Newspaper, X, ChevronRight, Calendar, Info } from 'lucide-react'
 
 interface DailyNews {
   id: number
@@ -16,10 +16,29 @@ interface DailyNews {
   isRead: boolean
 }
 
+// 获取今天的日期字符串
+const getTodayString = () => {
+  return new Date().toISOString().split('T')[0]
+}
+
+// 检查今天是否已经查看过新闻（使用本地存储）
+const hasSeenNewsToday = (): boolean => {
+  if (typeof window === 'undefined') return false
+  const lastSeenDate = localStorage.getItem('lastSeenNewsDate')
+  return lastSeenDate === getTodayString()
+}
+
+// 标记今天已查看新闻
+const markNewsSeenToday = () => {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('lastSeenNewsDate', getTodayString())
+}
+
 export default function DailyNewsPopup() {
   const [news, setNews] = useState<DailyNews | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [hasNews, setHasNews] = useState(false)
 
   useEffect(() => {
     fetchTodayNews()
@@ -29,12 +48,21 @@ export default function DailyNewsPopup() {
     try {
       const res = await fetch('/api/news')
       const data = await res.json()
-      if (data.news && !data.news.isRead) {
+      
+      if (data.news) {
         setNews(data.news)
-        setIsOpen(true)
+        setHasNews(true)
+        // 只有当今天还没看过新闻时才自动打开
+        if (!hasSeenNewsToday()) {
+          setIsOpen(true)
+        }
+      } else {
+        setHasNews(false)
+        setNews(null)
       }
     } catch (error) {
       console.error('Fetch news error:', error)
+      setHasNews(false)
     } finally {
       setLoading(false)
     }
@@ -47,16 +75,19 @@ export default function DailyNewsPopup() {
         await fetch('/api/news', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newsId: news.id })
+          body: JSON.stringify({ newsId: news?.id })
         })
       } catch (error) {
         console.error('Mark as read error:', error)
       }
     }
+    // 标记今天已查看
+    markNewsSeenToday()
     setIsOpen(false)
   }
 
-  if (loading || !news) return null
+  // 如果没有新闻，显示一个提示按钮而不是什么都不显示
+  if (loading) return null
 
   return (
     <AnimatePresence>
@@ -89,7 +120,7 @@ export default function DailyNewsPopup() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-white">每日新闻</h2>
-                    <p className="text-sm text-gray-400">{news.date} · {news.weather}</p>
+                    <p className="text-sm text-gray-400">{news?.date} · {news?.weather}</p>
                   </div>
                 </div>
                 
@@ -105,25 +136,25 @@ export default function DailyNewsPopup() {
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* 标题 */}
                 <h3 className="text-2xl font-bold text-amber-400 text-center leading-relaxed">
-                  {news.title}
+                  {news?.title}
                 </h3>
                 
                 {/* 开场白 */}
-                {news.content.split('📰')[0]?.trim() && (
+                {news?.content?.split('📰')[0]?.trim() && (
                   <div className="text-gray-300 leading-relaxed text-center italic">
-                    "{news.content.split('📰')[0].trim()}"
+                    "{news?.content?.split('📰')[0].trim()}"
                   </div>
                 )}
                 
                 {/* 世界大事 */}
-                {news.worldNews.length > 0 && (
+                {(news?.worldNews?.length ?? 0) > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-amber-400 font-semibold">
                       <span className="text-lg">🌍</span>
                       <span>世界大事</span>
                     </div>
                     <div className="space-y-2">
-                      {news.worldNews.map((item, index) => (
+                      {news?.worldNews?.map((item, index) => (
                         <motion.div
                           key={index}
                           initial={{ opacity: 0, x: -10 }}
@@ -143,14 +174,14 @@ export default function DailyNewsPopup() {
                 )}
                 
                 {/* 租客动态 */}
-                {news.tenantEvents.length > 0 && (
+                {(news?.tenantEvents?.length ?? 0) > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-amber-400 font-semibold">
                       <span className="text-lg">🏠</span>
                       <span>租客动态</span>
                     </div>
                     <div className="space-y-2">
-                      {news.tenantEvents.map((item, index) => (
+                      {news?.tenantEvents?.map((item, index) => (
                         <motion.div
                           key={index}
                           initial={{ opacity: 0, x: -10 }}

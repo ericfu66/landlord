@@ -23,25 +23,25 @@ function CyberpunkUserCard({ user, onVisit }: { user: VisitableUser; onVisit: ()
       {/* 霓虹光效 */}
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-cyan-500" />
       
-      <div className="relative p-6">
+      <div className="relative p-4 sm:p-6">
         {/* 用户头像区域 */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-fuchsia-500 p-[2px]">
-              <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center text-2xl font-bold text-cyan-400">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-cyan-400 to-fuchsia-500 p-[2px]">
+              <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center text-lg sm:text-2xl font-bold text-cyan-400">
                 {user.username[0].toUpperCase()}
               </div>
             </div>
             {/* 在线状态指示器 */}
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-slate-900 animate-pulse" />
+            <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-green-500 border-2 border-slate-900 animate-pulse" />
           </div>
           
-          <div className="flex-1">
-            <h3 className="text-xl font-bold text-white mb-1 group-hover:text-cyan-400 transition-colors">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-xl font-bold text-white mb-0.5 sm:mb-1 group-hover:text-cyan-400 transition-colors truncate">
               {user.username}
             </h3>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                 Lv.{Math.floor(user.totalFloors * 0.5 + user.characterCount * 0.3)}
               </span>
               <span className="text-slate-400">房东</span>
@@ -50,29 +50,29 @@ function CyberpunkUserCard({ user, onVisit }: { user: VisitableUser; onVisit: ()
         </div>
         
         {/* 统计数据 - 霓虹风格 */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-slate-800/50 rounded-lg p-3 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors">
-            <div className="text-2xl font-bold text-cyan-400">{user.totalFloors}</div>
-            <div className="text-xs text-slate-400 uppercase tracking-wider">楼层</div>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3 sm:mb-4">
+          <div className="bg-slate-800/50 rounded-lg p-2 sm:p-3 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors">
+            <div className="text-lg sm:text-2xl font-bold text-cyan-400">{user.totalFloors}</div>
+            <div className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider">楼层</div>
           </div>
-          <div className="bg-slate-800/50 rounded-lg p-3 border border-fuchsia-500/20 hover:border-fuchsia-500/40 transition-colors">
-            <div className="text-2xl font-bold text-fuchsia-400">{user.characterCount}</div>
-            <div className="text-xs text-slate-400 uppercase tracking-wider">租客</div>
+          <div className="bg-slate-800/50 rounded-lg p-2 sm:p-3 border border-fuchsia-500/20 hover:border-fuchsia-500/40 transition-colors">
+            <div className="text-lg sm:text-2xl font-bold text-fuchsia-400">{user.characterCount}</div>
+            <div className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider">租客</div>
           </div>
         </div>
         
         {/* 访问按钮 */}
         <button
           onClick={onVisit}
-          className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.5)] flex items-center justify-center gap-2 group/btn"
+          className="w-full py-2 sm:py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.5)] flex items-center justify-center gap-1.5 sm:gap-2 group/btn text-xs sm:text-sm touch-target"
         >
-          <Globe size={18} className="group-hover/btn:rotate-12 transition-transform" />
+          <Globe size={16} className="sm:w-[18px] sm:h-[18px] group-hover/btn:rotate-12 transition-transform" />
           参观基建
         </button>
       </div>
       
       {/* 角落装饰 */}
-      <div className="absolute top-2 right-2 text-cyan-500/30 text-xs font-mono">ID:{user.userId}</div>
+      <div className="absolute top-2 right-2 text-cyan-500/30 text-[10px] sm:text-xs font-mono">ID:{user.userId}</div>
     </div>
   )
 }
@@ -80,16 +80,16 @@ function CyberpunkUserCard({ user, onVisit }: { user: VisitableUser; onVisit: ()
 // 赛博朋克风格开关
 function CyberpunkToggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700 hover:border-cyan-500/30 transition-all">
-      <span className="text-slate-300 font-medium">{label}</span>
+    <div className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/50 rounded-xl border border-slate-700 hover:border-cyan-500/30 transition-all">
+      <span className="text-slate-300 font-medium text-xs sm:text-sm pr-2">{label}</span>
       <button
         onClick={() => onChange(!checked)}
-        className={`relative w-14 h-7 rounded-full transition-all duration-300 ${
+        className={`relative w-11 sm:w-14 h-5 sm:h-7 rounded-full transition-all duration-300 flex-shrink-0 ${
           checked ? 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-slate-600'
         }`}
       >
-        <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 ${
-          checked ? 'left-8' : 'left-1'
+        <div className={`absolute top-0.5 sm:top-1 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white transition-all duration-300 ${
+          checked ? 'left-6 sm:left-8' : 'left-0.5 sm:left-1'
         }`} />
       </button>
     </div>
@@ -173,38 +173,38 @@ export default function MultiplayerPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="relative">
-          <div className="w-12 h-12 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
-          <div className="absolute inset-0 w-12 h-12 border-2 border-fuchsia-500/30 border-b-fuchsia-500 rounded-full animate-spin animate-reverse" style={{ animationDuration: '1.5s' }} />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+          <div className="absolute inset-0 w-10 h-10 sm:w-12 sm:h-12 border-2 border-fuchsia-500/30 border-b-fuchsia-500 rounded-full animate-spin animate-reverse" style={{ animationDuration: '1.5s' }} />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-2 sm:px-0">
       {/* 赛博朋克风格标题 */}
-      <div className="text-center mb-8 relative">
+      <div className="text-center mb-6 sm:mb-8 relative">
         <div className="absolute inset-0 flex items-center justify-center opacity-10">
-          <div className="w-64 h-64 bg-cyan-500 rounded-full blur-[100px]" />
-          <div className="w-64 h-64 bg-fuchsia-500 rounded-full blur-[100px] -ml-32" />
+          <div className="w-40 h-40 sm:w-64 sm:h-64 bg-cyan-500 rounded-full blur-[100px]" />
+          <div className="w-40 h-40 sm:w-64 sm:h-64 bg-fuchsia-500 rounded-full blur-[100px] -ml-20 sm:-ml-32" />
         </div>
         
         <div className="relative">
-          <h1 className="text-4xl font-bold mb-2">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-2">
             <span className="bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
               联机中心
             </span>
           </h1>
-          <p className="text-slate-400 flex items-center justify-center gap-2">
-            <Radio size={16} className="text-cyan-400 animate-pulse" />
+          <p className="text-slate-400 flex items-center justify-center gap-2 text-xs sm:text-sm">
+            <Radio size={14} className="text-cyan-400 animate-pulse" />
             探索其他房东的基建世界
-            <Radio size={16} className="text-fuchsia-400 animate-pulse" />
+            <Radio size={14} className="text-fuchsia-400 animate-pulse" />
           </p>
         </div>
       </div>
 
       {/* 赛博朋克风格标签页 */}
-      <div className="flex justify-center gap-2 mb-8">
+      <div className="flex justify-center gap-1.5 sm:gap-2 mb-6 sm:mb-8 overflow-x-auto pb-2">
         {[
           { id: 'users', icon: Users, label: '探索世界' },
           { id: 'settings', icon: Shield, label: '隐私设置' },
@@ -213,28 +213,28 @@ export default function MultiplayerPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-300 whitespace-nowrap text-xs sm:text-sm touch-target ${
               activeTab === tab.id
                 ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.4)]'
                 : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:border-cyan-500/30 hover:text-cyan-400'
             }`}
           >
-            <tab.icon size={18} />
+            <tab.icon size={16} />
             {tab.label}
           </button>
         ))}
       </div>
 
       {/* 内容区域 */}
-      <div className="min-h-[400px]">
+      <div className="min-h-[300px] sm:min-h-[400px]">
         {activeTab === 'users' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
             {users.length === 0 ? (
-              <div className="col-span-full text-center py-16">
-                <div className="inline-block p-6 rounded-2xl bg-slate-800/50 border border-slate-700">
-                  <Globe size={48} className="mx-auto mb-4 text-slate-500" />
-                  <p className="text-slate-400">暂无其他房东开启联机功能</p>
-                  <p className="text-sm text-slate-500 mt-2">成为第一个探索者吧！</p>
+              <div className="col-span-full text-center py-12 sm:py-16">
+                <div className="inline-block p-4 sm:p-6 rounded-2xl bg-slate-800/50 border border-slate-700">
+                  <Globe size={36} className="mx-auto mb-3 sm:mb-4 text-slate-500" />
+                  <p className="text-slate-400 text-sm">暂无其他房东开启联机功能</p>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-2">成为第一个探索者吧！</p>
                 </div>
               </div>
             ) : (
@@ -251,13 +251,13 @@ export default function MultiplayerPage() {
 
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto">
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 p-6">
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                <Shield size={24} className="text-cyan-400" />
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
+                <Shield size={20} className="sm:w-6 sm:h-6 text-cyan-400" />
                 隐私控制中心
               </h2>
               
-              <div className="space-y-4">
+              <div className="space-y-2 sm:space-y-4">
                 <CyberpunkToggle
                   checked={settings?.allowVisits ?? true}
                   onChange={(v) => updateSettings('allowVisits', v)}
@@ -275,9 +275,9 @@ export default function MultiplayerPage() {
                 />
               </div>
 
-              <div className="mt-6 p-4 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                <p className="text-sm text-cyan-300 flex items-start gap-2">
-                  <Eye size={16} className="mt-0.5 flex-shrink-0" />
+              <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                <p className="text-xs sm:text-sm text-cyan-300 flex items-start gap-2">
+                  <Eye size={14} className="mt-0.5 flex-shrink-0" />
                   注意：访客互动使用独立的变量系统，不会影响您的角色数据。
                 </p>
               </div>
@@ -288,36 +288,37 @@ export default function MultiplayerPage() {
         {activeTab === 'history' && (
           <div className="max-w-3xl mx-auto">
             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-              <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <History size={20} className="text-fuchsia-400" />
+              <div className="p-3 sm:p-4 border-b border-slate-700 bg-slate-800/50">
+                <h2 className="text-sm sm:text-lg font-bold text-white flex items-center gap-2">
+                  <History size={16} className="sm:w-5 sm:h-5 text-fuchsia-400" />
                   最近访客记录
                 </h2>
               </div>
               
               {visitHistory.length === 0 ? (
-                <div className="text-center py-12">
-                  <History size={40} className="mx-auto mb-3 text-slate-600" />
-                  <p className="text-slate-400">暂无访问记录</p>
+                <div className="text-center py-10 sm:py-12">
+                  <History size={32} className="mx-auto mb-3 text-slate-600" />
+                  <p className="text-slate-400 text-sm">暂无访问记录</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-700/50">
                   {visitHistory.map((record) => (
-                    <div key={record.id} className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-fuchsia-500 flex items-center justify-center text-white font-bold">
+                    <div key={record.id} className="p-3 sm:p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-cyan-400 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm sm:text-base flex-shrink-0">
                           {record.visitorName?.[0]?.toUpperCase() || '?'}
                         </div>
-                        <div>
-                          <div className="text-white font-medium">{record.visitorName}</div>
-                          <div className="text-sm text-slate-400">
+                        <div className="min-w-0">
+                          <div className="text-white font-medium text-sm truncate">{record.visitorName}</div>
+                          <div className="text-xs text-slate-400">
                             {new Date(record.visitedAt).toLocaleString('zh-CN')}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 text-cyan-400">
-                        <MessageCircle size={16} />
-                        <span className="text-sm">访问了您的基建</span>
+                      <div className="flex items-center gap-1 sm:gap-2 text-cyan-400 flex-shrink-0 text-xs sm:text-sm">
+                        <MessageCircle size={14} />
+                        <span className="hidden sm:inline">访问了您的基建</span>
+                        <span className="sm:hidden">访问</span>
                       </div>
                     </div>
                   ))}
