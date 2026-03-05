@@ -38,4 +38,13 @@ describe('database schema', () => {
     expect(hash).toBeDefined()
     expect(hash).not.toBe('testpassword')
   })
+
+  it('creates group chat tables and indexes', async () => {
+    const db = await getDb()
+    const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('group_chat_messages','group_chat_summaries')")
+    expect(tables[0]?.values?.length).toBe(2)
+    
+    const indexes = db.exec("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_group_chat%'")
+    expect(indexes[0]?.values?.length).toBeGreaterThanOrEqual(2)
+  })
 })

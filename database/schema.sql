@@ -192,6 +192,36 @@ CREATE TABLE IF NOT EXISTS daily_news (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 群聊消息表
+CREATE TABLE IF NOT EXISTS group_chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  save_id INTEGER NOT NULL,
+  sender_type TEXT NOT NULL,
+  sender_name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  message_type TEXT NOT NULL,
+  transfer_amount INTEGER,
+  sticker_url TEXT,
+  sticker_emotion TEXT,
+  reply_to_id INTEGER,
+  chain_depth INTEGER DEFAULT 0,
+  is_summarized BOOLEAN DEFAULT FALSE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (save_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 群聊总结表
+CREATE TABLE IF NOT EXISTS group_chat_summaries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  save_id INTEGER NOT NULL,
+  summary_index INTEGER NOT NULL,
+  message_range TEXT NOT NULL,
+  summary_content TEXT NOT NULL,
+  selected BOOLEAN DEFAULT TRUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (save_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_characters_user_id ON characters(user_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_user_id ON rooms(user_id);
@@ -200,5 +230,7 @@ CREATE INDEX IF NOT EXISTS idx_presets_user_id ON presets(user_id);
 CREATE INDEX IF NOT EXISTS idx_worldviews_user_id ON worldviews(user_id);
 CREATE INDEX IF NOT EXISTS idx_workshop_type ON workshop_items(type);
 CREATE INDEX IF NOT EXISTS idx_diaries_character ON character_diaries(character_name);
+CREATE INDEX IF NOT EXISTS idx_group_chat_messages_save_created ON group_chat_messages(save_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_group_chat_summaries_save_created ON group_chat_summaries(save_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_character ON character_memories(character_name);
 CREATE INDEX IF NOT EXISTS idx_daily_news_user_date ON daily_news(user_id, date);
