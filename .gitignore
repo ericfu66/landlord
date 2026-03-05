@@ -44,3 +44,6 @@ nul
 # log files
 bot.log
 nohup.out
+
+# worktrees
+.worktrees/
