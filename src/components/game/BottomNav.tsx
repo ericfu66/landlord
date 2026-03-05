@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -12,6 +13,7 @@ const navItems = [
   { href: '/game/building', label: '基建', icon: '🏢', shortLabel: '基建' },
   { href: '/game/work', label: '打工', icon: '💼', shortLabel: '打工' },
   { href: '/game/multiplayer', label: '联机', icon: '🌐', shortLabel: '联机' },
+  { href: '/game/group-chat', label: '群聊', icon: '💬', shortLabel: '群聊' },
   { href: '/game/workshop', label: '工坊', icon: '🏪', shortLabel: '工坊' },
   { href: '/game/presets', label: '预设', icon: '🧩', shortLabel: '预设' },
   { href: '/game/saves', label: '存档', icon: '💾', shortLabel: '存档' },
