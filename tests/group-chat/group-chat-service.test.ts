@@ -10,8 +10,11 @@ describe('group chat service', () => {
   it('saves and fetches messages by save_id desc', async () => {
     const db = await getDb()
     
-    db.run(`INSERT INTO users (id, username, password_hash) VALUES (999, 'test_save_user', 'hash')`)
-    saveDb()
+    const existingUser = db.exec(`SELECT id FROM users WHERE id = 999`)
+    if (!existingUser[0] || existingUser[0].values.length === 0) {
+      db.run(`INSERT INTO users (id, username, password_hash) VALUES (999, 'test_save_user', 'hash')`)
+      saveDb()
+    }
     
     await saveGroupChatMessage({
       saveId: 999,
