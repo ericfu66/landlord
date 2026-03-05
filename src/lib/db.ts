@@ -23,7 +23,7 @@ export async function getDb(): Promise<any> {
     })
   }
 
-  dbPath = process.env.DATABASE_PATH || './data/landlord.db'
+  dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'landlord.db')
   const dbDir = path.dirname(dbPath)
 
   if (!fs.existsSync(dbDir)) {
@@ -73,6 +73,12 @@ async function autoMigrate(database: any): Promise<void> {
     // 用户表onboarding字段
     `ALTER TABLE users ADD COLUMN needs_onboarding BOOLEAN DEFAULT TRUE`,
     `ALTER TABLE users ADD COLUMN onboarding_step TEXT DEFAULT 'character'`,
+    // 招募次数字段
+    `ALTER TABLE users ADD COLUMN recruit_count INTEGER DEFAULT 0`,
+    // 等级系统字段
+    `ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1`,
+    `ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN talent_points INTEGER DEFAULT 0`,
   ]
 
   for (const migration of migrations) {
@@ -106,9 +112,22 @@ async function autoMigrate(database: any): Promise<void> {
 
 export function saveDb(): void {
   if (db && dbPath) {
-    const data = db.export()
-    const buffer = Buffer.from(data)
-    fs.writeFileSync(dbPath, buffer)
+    try {
+      const data = db.export()
+      const buffer = Buffer.from(data)
+      
+      // 确保目录存在
+      const dbDir = path.dirname(dbPath)
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true })
+      }
+      
+      fs.writeFileSync(dbPath, buffer)
+      console.log('[saveDb] Database saved to:', dbPath)
+    } catch (error) {
+      console.error('[saveDb] Failed to save database:', error)
+      throw error
+    }
   }
 }
 

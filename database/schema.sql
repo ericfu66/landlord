@@ -222,6 +222,35 @@ CREATE TABLE IF NOT EXISTS group_chat_summaries (
   FOREIGN KEY (save_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 任务表
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  condition_type TEXT NOT NULL,
+  condition_target TEXT,
+  condition_count INTEGER DEFAULT 1,
+  condition_progress INTEGER DEFAULT 0,
+  gold_reward INTEGER DEFAULT 0,
+  xp_reward INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  created_date TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 天赋表
+CREATE TABLE IF NOT EXISTS talents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  talent_id TEXT NOT NULL,
+  current_level INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(user_id, talent_id)
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_characters_user_id ON characters(user_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_user_id ON rooms(user_id);
@@ -234,3 +263,5 @@ CREATE INDEX IF NOT EXISTS idx_group_chat_messages_save_created ON group_chat_me
 CREATE INDEX IF NOT EXISTS idx_group_chat_summaries_save_created ON group_chat_summaries(save_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_character ON character_memories(character_name);
 CREATE INDEX IF NOT EXISTS idx_daily_news_user_date ON daily_news(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_talents_user_id ON talents(user_id);
