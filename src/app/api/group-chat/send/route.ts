@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth/session'
 import { getCharactersByUser } from '@/lib/services/recruit-service'
 import { saveGroupChatMessage } from '@/lib/services/group-chat-service'
 import { selectTriggeredCharacters } from '@/lib/services/group-chat-orchestrator'
+import { checkGroupChatCooldown } from '@/lib/services/group-chat-rate-limit'
 
 interface SendBody {
   content?: string
@@ -11,6 +12,7 @@ interface SendBody {
 
 const MAX_CONTENT_LENGTH = 500
 const MAX_TRIGGERED_CHARACTERS = 5
+const MAX_CHAIN_DEPTH = 3
 
 function getRandomCount(): number {
   return Math.random() < 0.5 ? 1 : 2
@@ -27,7 +29,12 @@ function sanitizeMentioned(mentioned: unknown): string[] {
     .filter((item) => item.length > 0)
 }
 
+function logSendMetrics(payload: Record<string, unknown>) {
+  console.info('[group-chat-send]', JSON.stringify(payload))
+}
+
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now()
   try {
     const session = await getSession()
     if (!session) {
@@ -45,6 +52,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '消息长度不能超过500字' }, { status: 400 })
     }
 
+    const cooldownRemaining = checkGroupChatCooldown(session.userId)
+    if (cooldownRemaining > 0) {
+      return NextResponse.json(
+        { error: '发送过快，请稍后再试', retryAfterMs: cooldownRemaining },
+        { status: 429 }
+      )
+    }
+
     const characters = await getCharactersByUser(session.userId)
     const allCharacterNames = characters.map((item) => item.name)
     const mentionedCharacters = sanitizeMentioned(body.mentionedCharacters)
@@ -54,6 +69,8 @@ export async function POST(request: NextRequest) {
       mentionedCharacters,
       randomCount: getRandomCount()
     }).slice(0, MAX_TRIGGERED_CHARACTERS)
+
+    const chainDepth = Math.min(MAX_CHAIN_DEPTH, 1)
 
     const playerMessage = await saveGroupChatMessage({
       saveId: session.userId,
@@ -81,13 +98,28 @@ export async function POST(request: NextRequest) {
             senderName: characterName,
             content: `收到：${content}`,
             messageType: 'text',
-            chainDepth: 1
+            chainDepth
           })
 
           writeEvent('message', generated)
         }
 
-        writeEvent('done', { ok: true, triggerCount: selectedCharacters.length })
+        const latency = Date.now() - requestStartedAt
+        logSendMetrics({
+          userId: session.userId,
+          trigger_count: selectedCharacters.length,
+          chain_depth: chainDepth,
+          tool_success: true,
+          latency_ms: latency
+        })
+
+        writeEvent('done', {
+          ok: true,
+          triggerCount: selectedCharacters.length,
+          chainDepth,
+          toolSuccess: true,
+          latencyMs: latency
+        })
         controller.close()
       }
     })

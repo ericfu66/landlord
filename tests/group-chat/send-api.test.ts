@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, runMigrations, saveDb } from '@/lib/db'
+import { resetGroupChatCooldownForTest } from '@/lib/services/group-chat-rate-limit'
 
 const { getSessionMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn()
@@ -17,6 +18,7 @@ describe('group chat send api', () => {
   })
 
   beforeEach(async () => {
+    resetGroupChatCooldownForTest()
     getSessionMock.mockReset()
     const db = await getDb()
     db.run("DELETE FROM group_chat_messages WHERE save_id = 9901")
