@@ -107,3 +107,15 @@ export async function testConnection(config: AIConfig): Promise<{ success: boole
     return { success: false, error: error instanceof Error ? error.message : '未知错误' }
   }
 }
+
+export function parseToolCallArguments(argumentsText: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(argumentsText)
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Record<string, unknown>
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
