@@ -175,8 +175,43 @@ export async function setSummarySelection(
   
   if (summaryIds.length > 0) {
     const idsStr = summaryIds.join(',')
-    db.run(`UPDATE group_chat_summaries SET selected = 1 WHERE id IN (${idsStr})`)
+    db.run(`UPDATE group_chat_summaries SET selected = 1 WHERE save_id = ${saveId} AND id IN (${idsStr})`)
   }
   
+  saveDb()
+}
+
+export async function getGroupChatSummaries(saveId: number): Promise<GroupChatSummary[]> {
+  const db = await getDb()
+  const result = db.exec(
+    `SELECT id, save_id, summary_index, message_range, summary_content, selected, created_at
+     FROM group_chat_summaries
+     WHERE save_id = ${saveId}
+     ORDER BY summary_index DESC, created_at DESC`
+  )
+
+  if (!result || result.length === 0 || !result[0].values) {
+    return []
+  }
+
+  return result[0].values.map((row: unknown[]) => ({
+    id: row[0] as number,
+    saveId: row[1] as number,
+    summaryIndex: row[2] as number,
+    messageRange: row[3] as string,
+    summaryContent: row[4] as string,
+    selected: row[5] === 1,
+    createdAt: row[6] as string
+  }))
+}
+
+export async function markMessagesSummarized(messageIds: number[]): Promise<void> {
+  if (messageIds.length === 0) {
+    return
+  }
+
+  const db = await getDb()
+  const ids = messageIds.join(',')
+  db.run(`UPDATE group_chat_messages SET is_summarized = 1 WHERE id IN (${ids})`)
   saveDb()
 }
