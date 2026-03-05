@@ -1,4 +1,5 @@
 import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
+import { getTalentModifiers } from './talent-service'
 
 export interface GameState {
   userId: number
@@ -167,21 +168,45 @@ export async function dailyReset(userId: number): Promise<DailySettlement> {
   const charResult = db.exec(
     `SELECT COALESCE(SUM(rent), 0) as total_rent FROM characters WHERE user_id = ${userId}`
   )
-  const totalRent = (charResult?.[0]?.values?.[0]?.[0] as number) || 0
+  let totalRent = (charResult?.[0]?.values?.[0]?.[0] as number) || 0
+
+  // 应用天赋加成
+  const talentMods = await getTalentModifiers(userId)
+
+  // 精明商人：租金收入加成
+  if (talentMods.rentIncomeBonus > 1) {
+    totalRent = Math.round(totalRent * talentMods.rentIncomeBonus)
+  }
+
+  // 恐惧支配：服从>50的角色额外租金加成
+  if (talentMods.rentObedienceBonus > 0) {
+    const fearResult = db.exec(
+      `SELECT COALESCE(SUM(rent), 0) FROM characters WHERE user_id = ${userId} AND obedience > 50`
+    )
+    const fearRent = (fearResult?.[0]?.values?.[0]?.[0] as number) || 0
+    totalRent += Math.round(fearRent * talentMods.rentObedienceBonus)
+  }
 
   // 计算总收入（工资 + 租金）
   let salaryIncome = 0
   if (state.currentJob) {
     salaryIncome = state.currentJob.salary
+    // 高薪猎手：工资加成
+    if (talentMods.salaryBonus > 1) {
+      salaryIncome = Math.round(salaryIncome * talentMods.salaryBonus)
+    }
   }
   const totalIncome = totalRent + salaryIncome
 
   // 计算新的货币数量
   const newCurrency = state.currency + totalIncome
 
+  // 精力充沛：能量上限加成
+  const maxEnergy = 3 + (talentMods.energyLimitBonus || 0)
+
   // 更新游戏状态
   await updateGameState(userId, {
-    energy: 3,
+    energy: maxEnergy,
     weather: randomWeather,
     debtDays: newDebtDays,
     currency: newCurrency
@@ -190,7 +215,7 @@ export async function dailyReset(userId: number): Promise<DailySettlement> {
   // 如果有工作，扣除体力
   if (state.currentJob) {
     await updateGameState(userId, {
-      energy: Math.max(0, 3 - 1) // 新的一天初始体力是3，工作消耗1
+      energy: Math.max(0, maxEnergy - 1) // 工作消耗1点能量
     })
   }
 

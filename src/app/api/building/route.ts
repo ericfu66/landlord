@@ -4,6 +4,7 @@ import { getUserById } from '@/lib/auth/repo'
 import { getRoomsByUser, createRoom, updateRoomType, deleteRoom, addNewFloor } from '@/lib/services/building-service'
 import { calculateBuildCost, BUILD_COSTS } from '@/lib/services/building-service'
 import { deductCurrency, getGameState, updateGameState } from '@/lib/services/economy-service'
+import { getTalentModifiers } from '@/lib/services/talent-service'
 
 // 确保游戏状态存在，如果不存在则创建
 async function ensureGameState(userId: number): Promise<boolean> {
@@ -56,6 +57,14 @@ export async function POST(request: NextRequest) {
         const cellCount = positionEnd - positionStart
         const cost = calculateBuildCost(roomType, cellCount, isNewFloor || false)
 
+        // 应用天赋建造折扣
+        const talentMods = await getTalentModifiers(session.userId)
+        const discountedCurrency = Math.round(cost.currency * talentMods.buildCostDiscount)
+        const discountedFloorCost = isNewFloor
+          ? Math.round(5000 * (talentMods.floorCostDiscount - 1)) // 差额（负数，即减少的金额）
+          : 0
+        const finalCurrency = discountedCurrency + discountedFloorCost
+
         // 检查并扣除费用
         let gameState = await getGameState(session.userId)
         // 确保游戏状态存在（处理并发情况）
@@ -68,8 +77,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: '初始化游戏状态失败' }, { status: 500 })
         }
 
-        if (gameState.currency < cost.currency) {
-          return NextResponse.json({ error: `货币不足，需要 ${cost.currency} 货币` }, { status: 400 })
+        if (gameState.currency < finalCurrency) {
+          return NextResponse.json({ error: `货币不足，需要 ${finalCurrency} 货币` }, { status: 400 })
         }
 
         if (gameState.energy < cost.energy) {
@@ -77,9 +86,9 @@ export async function POST(request: NextRequest) {
         }
 
         // 扣除货币和体力
-        const deducted = await deductCurrency(session.userId, cost.currency)
+        const deducted = await deductCurrency(session.userId, finalCurrency)
         if (!deducted) {
-          return NextResponse.json({ error: `货币不足，需要 ${cost.currency} 货币` }, { status: 400 })
+          return NextResponse.json({ error: `货币不足，需要 ${finalCurrency} 货币` }, { status: 400 })
         }
 
         await updateGameState(session.userId, { energy: gameState.energy - cost.energy })

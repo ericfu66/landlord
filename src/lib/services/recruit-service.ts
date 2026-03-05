@@ -1,5 +1,6 @@
 import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { SpecialVariableData, StagePersonality } from '@/prompts/character-template'
+import { getTalentModifiers } from './talent-service'
 
 export type { SpecialVariableData, StagePersonality }
 
@@ -125,10 +126,14 @@ export async function createCharacter(
   
   const specialVarNameValue = specialVarName ? `'${specialVarName}'` : 'NULL'
   const specialVarStagesValue = specialVarStages ? `'${specialVarStages}'` : 'NULL'
-  
+
+  // 亲和力天赋：初始好感度加成
+  const talentMods = await getTalentModifiers(safeUserId)
+  const initialFavorability = talentMods.initialFavorabilityBonus
+
   db.run(
     `INSERT INTO characters (name, user_id, template, favorability, obedience, corruption, rent, mood, room_id, worldview_id, special_var_name, special_var_value, special_var_stages)
-     VALUES ('${safeSqlString(name)}', ${safeUserId}, '${templateJson}', 0, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue}, ${specialVarNameValue}, ${specialVarValue}, ${specialVarStagesValue})`
+     VALUES ('${safeSqlString(name)}', ${safeUserId}, '${templateJson}', ${initialFavorability}, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue}, ${specialVarNameValue}, ${specialVarValue}, ${specialVarStagesValue})`
   )
   
   if (safeRoomId) {
