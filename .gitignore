@@ -34,6 +34,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# compiled JS in src (use TS files instead)
+src/**/*.js
+src/**/*.js.map
+
 # database
 *.db
 *.db-journal
