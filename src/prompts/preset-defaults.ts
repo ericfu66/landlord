@@ -70,6 +70,7 @@ export const UPDATE_VARIABLES_TOOL = {
         favorability_delta: { type: 'integer', description: '好感度变化 (-10到+10)', minimum: -10, maximum: 10 },
         obedience_delta: { type: 'integer', description: '顺从度变化 (-5到+5)', minimum: -5, maximum: 5 },
         corruption_delta: { type: 'integer', description: '堕落度变化 (-5到+5)', minimum: -5, maximum: 5 },
+        special_var_delta: { type: 'integer', description: '特殊变量变化 (-10到+10)', minimum: -10, maximum: 10 },
         mood: { type: 'string', description: '角色当前心情（第一人称描述）' }
       },
       required: ['character_name', 'favorability_delta', 'obedience_delta', 'corruption_delta', 'mood']

@@ -56,6 +56,10 @@ async function autoMigrate(database: any): Promise<void> {
     // 角色表字段
     `ALTER TABLE characters ADD COLUMN worldview_id INTEGER`,
     `ALTER TABLE characters ADD COLUMN portrait_url TEXT`,
+    // 特殊变量字段（动态变量系统）
+    `ALTER TABLE characters ADD COLUMN special_var_name TEXT`,
+    `ALTER TABLE characters ADD COLUMN special_var_value INTEGER DEFAULT 0`,
+    `ALTER TABLE characters ADD COLUMN special_var_stages TEXT`,
     // 用户表OAuth字段
     `ALTER TABLE users ADD COLUMN discord_id TEXT UNIQUE`,
     `ALTER TABLE users ADD COLUMN discord_username TEXT`,

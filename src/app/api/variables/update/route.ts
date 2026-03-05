@@ -64,7 +64,8 @@ export async function POST(request: NextRequest) {
       favorabilityDelta: updates.favorability_delta || 0,
       obedienceDelta: updates.obedience_delta || 0,
       corruptionDelta: updates.corruption_delta || 0,
-      mood: updates.mood || '平静'
+      mood: updates.mood || '平静',
+      specialVarDelta: updates.special_var_delta || 0
     })
 
     return NextResponse.json({
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
         favorability: updates.favorability_delta || 0,
         obedience: updates.obedience_delta || 0,
         corruption: updates.corruption_delta || 0,
+        specialVar: updates.special_var_delta || 0,
         mood: updates.mood || '平静'
       }
     })

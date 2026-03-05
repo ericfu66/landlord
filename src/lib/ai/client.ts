@@ -74,8 +74,17 @@ export async function createChatCompletion(
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`AI API error: ${response.status} - ${error}`)
+    let errorMessage: string
+    const errorText = await response.text()
+    try {
+      // 尝试解析JSON错误
+      const errorJson = JSON.parse(errorText)
+      errorMessage = errorJson.error?.message || errorJson.message || errorJson.error || errorText
+    } catch {
+      // 如果不是JSON，使用原文本
+      errorMessage = errorText
+    }
+    throw new Error(`AI API错误 (${response.status}): ${errorMessage || '未知错误'}`)
   }
 
   return response.json()

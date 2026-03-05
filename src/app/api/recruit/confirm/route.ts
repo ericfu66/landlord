@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { getUserById } from '@/lib/auth/repo'
-import { createCharacter } from '@/lib/services/recruit-service'
+import { createCharacter, SpecialVariableData } from '@/lib/services/recruit-service'
 import { getGameState, updateGameState } from '@/lib/services/economy-service'
 import { getDb } from '@/lib/db'
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { character, roomId, portraitUrl, worldviewId } = body
+    const { character, roomId, portraitUrl, worldviewId, specialVar } = body
 
     if (!character) {
       return NextResponse.json({ error: '缺少角色数据' }, { status: 400 })
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
 
     // 使用找到的空房间ID，如果没有传入roomId则使用找到的空房间
     const finalRoomId = roomId || availableRoomId
-    const newCharacter = await createCharacter(session.userId, character, finalRoomId, worldviewId)
+    const specialVarData = specialVar as SpecialVariableData | undefined
+    const newCharacter = await createCharacter(session.userId, character, finalRoomId, worldviewId, specialVarData)
 
     if (!newCharacter) {
       return NextResponse.json({ error: '角色已存在或创建失败' }, { status: 400 })

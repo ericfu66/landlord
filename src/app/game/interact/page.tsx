@@ -36,6 +36,7 @@ interface CharacterData {
       }
     }
   }
+  portraitUrl?: string
   favorability: number
   obedience: number
   corruption: number
@@ -60,6 +61,12 @@ function InteractContent() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<InteractionMode>('daily')
   const [updating, setUpdating] = useState(false)
+  
+  // Sticker and portrait states
+  const [stickerUrl, setStickerUrl] = useState<string | undefined>()
+  const [stickerEmotion, setStickerEmotion] = useState<string | undefined>()
+  const [tempPortraitUrl, setTempPortraitUrl] = useState<string | undefined>()
+  const [portraitLoading, setPortraitLoading] = useState(false)
   
   // Diary related states
   const [diaries, setDiaries] = useState<DiaryEntry[]>([])
@@ -218,6 +225,17 @@ function InteractContent() {
           })))
         }
 
+        // Handle sticker
+        if (data.stickerUrl) {
+          setStickerUrl(data.stickerUrl)
+          setStickerEmotion(data.stickerEmotion)
+          // Clear sticker after 5 seconds
+          setTimeout(() => {
+            setStickerUrl(undefined)
+            setStickerEmotion(undefined)
+          }, 5000)
+        }
+
         if (data.toolCall) {
           setUpdating(true)
           await fetch('/api/variables/update', {
@@ -252,6 +270,40 @@ function InteractContent() {
     setMode(newMode)
     setMessages([])
     setChoices([])
+    setStickerUrl(undefined)
+    setTempPortraitUrl(undefined)
+  }
+
+  // Handle real-time portrait generation
+  const handleGeneratePortrait = async (emotion: string) => {
+    if (!character || portraitLoading) return
+    
+    setPortraitLoading(true)
+    try {
+      const res = await fetch('/api/interact/edit-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterName: character.name,
+          emotion,
+          pose: 'standing'
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok && data.imageUrl) {
+        setTempPortraitUrl(data.imageUrl)
+      } else {
+        console.error('Portrait generation failed:', data.error)
+        alert(data.error || '生成实时立绘失败')
+      }
+    } catch (error) {
+      console.error('Generate portrait error:', error)
+      alert('生成实时立绘失败')
+    } finally {
+      setPortraitLoading(false)
+    }
   }
 
   const isGalgameMode = GALGAME_MODES.includes(mode)
@@ -287,7 +339,7 @@ function InteractContent() {
     return (
       <GalgameDialog
         characterName={character.name}
-        characterImage={character.template.角色档案.基本信息.标签?.[0]}
+        characterImage={tempPortraitUrl || character.portraitUrl}
         messages={messages}
         choices={choices}
         onSend={handleSend}
@@ -296,6 +348,10 @@ function InteractContent() {
         loading={loading}
         favorability={character.favorability}
         mode={mode}
+        stickerUrl={stickerUrl}
+        stickerEmotion={stickerEmotion}
+        onGeneratePortrait={handleGeneratePortrait}
+        portraitLoading={portraitLoading}
       />
     )
   }

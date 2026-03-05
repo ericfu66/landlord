@@ -105,7 +105,7 @@ export default function BottomNav() {
             <div className="flex items-center justify-around overflow-x-auto scrollbar-hide">
               {navItems.map((item) => {
                 const isActive = pathname === item.href ||
-                  (item.href !== '/game' && pathname.startsWith(item.href))
+                  (item.href !== '/game' && pathname.startsWith(item.href + '/'))
 
                 return (
                   <Link
@@ -148,7 +148,7 @@ export default function BottomNav() {
             <div className="glass-card flex items-center gap-1 px-2 py-2 mx-auto w-fit max-w-[90vw] overflow-x-auto">
               {navItems.map((item) => {
                 const isActive = pathname === item.href ||
-                  (item.href !== '/game' && pathname.startsWith(item.href))
+                  (item.href !== '/game' && pathname.startsWith(item.href + '/'))
 
                 return (
                   <Link

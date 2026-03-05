@@ -3,8 +3,8 @@ import { pickLastThreeRounds, clampValue, clampDelta } from '@/lib/services/vari
 
 describe('variable context window', () => {
   it('returns latest 6 messages', () => {
-    const msgs = Array.from({ length: 10 }).map((_, i) => ({
-      role: i % 2 ? 'assistant' : 'user' as const,
+    const msgs: { role: 'user' | 'assistant'; content: string }[] = Array.from({ length: 10 }).map((_, i) => ({
+      role: i % 2 ? 'assistant' : 'user',
       content: String(i)
     }))
     
@@ -15,8 +15,8 @@ describe('variable context window', () => {
   })
 
   it('returns all messages if less than 6', () => {
-    const msgs = Array.from({ length: 4 }).map((_, i) => ({
-      role: i % 2 ? 'assistant' : 'user' as const,
+    const msgs: { role: 'user' | 'assistant'; content: string }[] = Array.from({ length: 4 }).map((_, i) => ({
+      role: i % 2 ? 'assistant' : 'user',
       content: String(i)
     }))
     

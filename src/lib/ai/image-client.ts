@@ -7,6 +7,8 @@ export interface ImageGenerationRequest {
   num_inference_steps?: number
   guidance_scale?: number
   cfg?: number
+  image?: string  // For image editing - base64 or URL
+  reference_image?: string  // For image editing with reference
 }
 
 export interface ImageGenerationResponse {
@@ -41,7 +43,9 @@ export async function generateImage(
       seed: request.seed,
       num_inference_steps: request.num_inference_steps || 20,
       guidance_scale: request.guidance_scale ?? 7.5,
-      cfg: request.cfg
+      cfg: request.cfg,
+      image: request.image,
+      reference_image: request.reference_image
     })
   })
 
@@ -51,6 +55,86 @@ export async function generateImage(
   }
 
   return response.json()
+}
+
+// Generate sticker/emoticon using Kwai-Kolors/Kolors
+export async function generateSticker(
+  apiKey: string,
+  characterInfo: {
+    name: string
+    age: number
+    gender: string
+    personality?: string
+    appearance?: string
+  },
+  emotion: string
+): Promise<ImageGenerationResponse> {
+  const stickerPrompt = `A cute anime chibi sticker of ${characterInfo.name}, ${characterInfo.age} years old ${characterInfo.gender}, ${characterInfo.appearance || 'cute appearance'}, expressing ${emotion} emotion, kawaii style, white background, sticker format, high quality, cute emoticon, 2D illustration, clean line art, vibrant colors, chibi proportions, big expressive eyes, adorable pose, digital art, transparent background preferred, emoji style`
+
+  return generateImage(apiKey, {
+    model: 'Kwai-Kolors/Kolors',
+    prompt: stickerPrompt,
+    size: '512x512',
+    n: 1,
+    num_inference_steps: 25,
+    guidance_scale: 7.5
+  })
+}
+
+// Generate real-time portrait edit using Qwen-Image-Edit
+export async function editPortrait(
+  apiKey: string,
+  referenceImageUrl: string,
+  prompt: string,
+  options?: {
+    cfg?: number
+    numInferenceSteps?: number
+  }
+): Promise<ImageGenerationResponse> {
+  const response = await fetch(`${SILICONFLOW_BASE_URL}/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'Qwen/Qwen-Image-Edit-2509',
+      prompt: prompt,
+      image: referenceImageUrl,
+      reference_image: referenceImageUrl,
+      cfg: options?.cfg ?? 4.0,
+      num_inference_steps: options?.numInferenceSteps ?? 50
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Portrait edit error: ${response.status} - ${error}`)
+  }
+
+  return response.json()
+}
+
+// Generate portrait variation with emotion using reference image
+export async function generatePortraitVariation(
+  apiKey: string,
+  referenceImageUrl: string,
+  characterInfo: {
+    name: string
+    age: number
+    gender: string
+    identity: string
+    personality?: string
+  },
+  emotion: string,
+  pose?: string
+): Promise<ImageGenerationResponse> {
+  const prompt = `Anime galgame style portrait of ${characterInfo.name}, ${characterInfo.age} years old ${characterInfo.gender}, ${characterInfo.identity}, ${characterInfo.personality || ''}, showing ${emotion} expression, ${pose || 'standing pose'}, same character as reference, maintain facial features and hairstyle, consistent character design, high quality, detailed, soft lighting, visual novel art style`
+
+  return editPortrait(apiKey, referenceImageUrl, prompt, {
+    cfg: 4.0,
+    numInferenceSteps: 50
+  })
 }
 
 // Generate anime galgame style prompt using LLM

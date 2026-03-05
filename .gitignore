@@ -40,3 +40,7 @@ next-env.d.ts
 
 # system reserved
 nul
+
+# log files
+bot.log
+nohup.out

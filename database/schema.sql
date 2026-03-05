@@ -111,6 +111,11 @@ CREATE TABLE IF NOT EXISTS worldviews (
 -- 注意：这条ALTER TABLE语句在应用启动时通过代码执行，此处仅作记录
 -- ALTER TABLE characters ADD COLUMN worldview_id INTEGER;
 
+-- 特殊变量字段（动态变量系统）
+-- ALTER TABLE characters ADD COLUMN special_var_name TEXT;
+-- ALTER TABLE characters ADD COLUMN special_var_value INTEGER DEFAULT 0;
+-- ALTER TABLE characters ADD COLUMN special_var_stages TEXT; -- JSON格式存储分阶段人设
+
 -- 创意工坊表
 CREATE TABLE IF NOT EXISTS workshop_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

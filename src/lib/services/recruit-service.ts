@@ -1,4 +1,7 @@
 import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
+import { SpecialVariableData, StagePersonality } from '@/prompts/character-template'
+
+export type { SpecialVariableData, StagePersonality }
 
 export interface CharacterTemplate {
   角色档案: {
@@ -54,6 +57,9 @@ export interface Character {
   mood: string
   roomId?: number
   worldviewId?: number
+  specialVarName?: string
+  specialVarValue?: number
+  specialVarStages?: SpecialVariableData['分阶段人设']
 }
 
 export function normalizeCharacter(raw: Record<string, unknown>): CharacterTemplate | null {
@@ -68,11 +74,31 @@ export function normalizeCharacter(raw: Record<string, unknown>): CharacterTempl
   }
 }
 
+export function getCurrentStagePersonality(
+  value: number,
+  stages: SpecialVariableData['分阶段人设']
+): SpecialVariableData['分阶段人设'][0] | null {
+  if (!stages || stages.length === 0) return null
+  
+  for (const stage of stages) {
+    const [min, max] = stage.阶段范围.split('-').map(Number)
+    if (value >= min && value < max) {
+      return stage
+    }
+    // Handle the last stage (80-100)
+    if (value === 100 && max === 100 && value >= min) {
+      return stage
+    }
+  }
+  return stages[0]
+}
+
 export async function createCharacter(
   userId: number,
   template: CharacterTemplate,
   roomId?: number,
-  worldviewId?: number
+  worldviewId?: number,
+  specialVarData?: SpecialVariableData
 ): Promise<Character | null> {
   const db = await getDb()
   const safeUserId = safeInt(userId)
@@ -91,9 +117,18 @@ export async function createCharacter(
   const templateJson = safeSqlString(JSON.stringify(template))
   const roomIdValue = safeRoomId ?? 'NULL'
   const worldviewIdValue = safeWorldviewId ?? 'NULL'
+  
+  // Handle special variable data
+  const specialVarName = specialVarData ? safeSqlString(specialVarData.变量名) : null
+  const specialVarValue = specialVarData ? safeInt(specialVarData.初始值) : 0
+  const specialVarStages = specialVarData ? safeSqlString(JSON.stringify(specialVarData.分阶段人设)) : null
+  
+  const specialVarNameValue = specialVarName ? `'${specialVarName}'` : 'NULL'
+  const specialVarStagesValue = specialVarStages ? `'${specialVarStages}'` : 'NULL'
+  
   db.run(
-    `INSERT INTO characters (name, user_id, template, favorability, obedience, corruption, rent, mood, room_id, worldview_id)
-     VALUES ('${safeSqlString(name)}', ${safeUserId}, '${templateJson}', 0, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue})`
+    `INSERT INTO characters (name, user_id, template, favorability, obedience, corruption, rent, mood, room_id, worldview_id, special_var_name, special_var_value, special_var_stages)
+     VALUES ('${safeSqlString(name)}', ${safeUserId}, '${templateJson}', 0, 0, 0, ${rent}, '平静', ${roomIdValue}, ${worldviewIdValue}, ${specialVarNameValue}, ${specialVarValue}, ${specialVarStagesValue})`
   )
   
   if (safeRoomId) {
@@ -114,14 +149,17 @@ export async function createCharacter(
     rent,
     mood: '平静',
     roomId,
-    worldviewId
+    worldviewId,
+    specialVarName: specialVarData?.变量名,
+    specialVarValue: specialVarData?.初始值,
+    specialVarStages: specialVarData?.分阶段人设
   }
 }
 
 export async function getCharactersByUser(userId: number): Promise<Character[]> {
   const db = await getDb()
   const result = db.exec(
-    `SELECT name, user_id, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id, worldview_id
+    `SELECT name, user_id, template, portrait_url, favorability, obedience, corruption, rent, mood, room_id, worldview_id, special_var_name, special_var_value, special_var_stages
      FROM characters WHERE user_id = ${userId}`
   )
   
@@ -140,7 +178,10 @@ export async function getCharactersByUser(userId: number): Promise<Character[]> 
     rent: row[7] as number | undefined,
     mood: row[8] as string,
     roomId: row[9] as number | undefined,
-    worldviewId: row[10] as number | undefined
+    worldviewId: row[10] as number | undefined,
+    specialVarName: row[11] as string | undefined,
+    specialVarValue: row[12] as number | undefined,
+    specialVarStages: row[13] ? JSON.parse(row[13] as string) as SpecialVariableData['分阶段人设'] : undefined
   }))
 }
 

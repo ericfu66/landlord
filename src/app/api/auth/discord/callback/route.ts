@@ -5,6 +5,7 @@ import { createSession } from '@/lib/auth/session'
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1461367865608376400'
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || 'wQBUA7k0w6ULeSqTGR4gCLcnCxykUEu9'
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/api/auth/discord/callback'
+const APP_URL = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || ''
 
 interface DiscordUser {
   id: string
@@ -156,15 +157,20 @@ export async function GET(request: NextRequest) {
     const sessionToken = await createSession(userId, needsOnboarding)
 
     // 构建重定向URL
-    let redirectUrl: string
+    let redirectPath: string
     if (needsOnboarding) {
-      redirectUrl = `/onboarding?step=${onboardingStep}`
+      redirectPath = `/onboarding?step=${onboardingStep}`
     } else {
-      redirectUrl = '/game'
+      redirectPath = '/game'
     }
 
+    // 使用配置的 APP_URL 或从请求中推断基础 URL
+    const baseUrl = APP_URL || request.headers.get('x-forwarded-host') 
+      ? `${request.headers.get('x-forwarded-proto') || 'https'}://${request.headers.get('x-forwarded-host') || request.headers.get('host')}`
+      : request.url
+
     // 创建响应并设置session cookie
-    const response = NextResponse.redirect(new URL(redirectUrl, request.url))
+    const response = NextResponse.redirect(new URL(redirectPath, baseUrl))
     response.cookies.set('session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

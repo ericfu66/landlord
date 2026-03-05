@@ -1,4 +1,6 @@
 import { getDb, saveDb } from '@/lib/db'
+import { SpecialVariableData } from '@/prompts/character-template'
+import { getCurrentStagePersonality } from './recruit-service'
 
 // 转义 SQL 字符串
 function escapeSql(str: string): string {
@@ -11,6 +13,7 @@ export interface VariableUpdate {
   obedienceDelta: number
   corruptionDelta: number
   mood: string
+  specialVarDelta?: number
 }
 
 export interface ChatMessage {
@@ -41,7 +44,7 @@ export async function updateCharacterVariables(
   const db = await getDb()
   
   const result = db.exec(
-    `SELECT favorability, obedience, corruption FROM characters WHERE name = '${escapeSql(characterName)}'`
+    `SELECT favorability, obedience, corruption, special_var_name, special_var_value, special_var_stages FROM characters WHERE name = '${escapeSql(characterName)}'`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -52,6 +55,9 @@ export async function updateCharacterVariables(
   const currentFav = row[0] as number
   const currentObey = row[1] as number
   const currentCorrupt = row[2] as number
+  const specialVarName = row[3] as string | null
+  const currentSpecialVar = row[4] as number | null
+  const specialVarStagesJson = row[5] as string | null
   
   const clampedFavDelta = clampDelta(updates.favorabilityDelta, -10, 10)
   const clampedObeyDelta = clampDelta(updates.obedienceDelta, -5, 5)
@@ -61,8 +67,16 @@ export async function updateCharacterVariables(
   const newObey = clampValue(currentObey + clampedObeyDelta)
   const newCorrupt = clampValue(currentCorrupt + clampedCorruptDelta)
   
+  // Handle special variable update if it exists
+  let specialVarUpdate = ''
+  if (specialVarName && currentSpecialVar !== null && updates.specialVarDelta !== undefined) {
+    const clampedSpecialDelta = clampDelta(updates.specialVarDelta, -10, 10)
+    const newSpecialVar = clampValue(currentSpecialVar + clampedSpecialDelta, 0, 100)
+    specialVarUpdate = `, special_var_value = ${newSpecialVar}`
+  }
+  
   db.run(
-    `UPDATE characters SET favorability = ${newFav}, obedience = ${newObey}, corruption = ${newCorrupt}, mood = '${escapeSql(updates.mood)}' WHERE name = '${escapeSql(characterName)}'`
+    `UPDATE characters SET favorability = ${newFav}, obedience = ${newObey}, corruption = ${newCorrupt}, mood = '${escapeSql(updates.mood)}'${specialVarUpdate} WHERE name = '${escapeSql(characterName)}'`
   )
   saveDb()
   
@@ -98,12 +112,15 @@ export interface VariableDisplayData {
   obedience: number
   corruption: number
   mood: string
+  specialVarName?: string
+  specialVarValue?: number
+  currentStagePersonality?: string
 }
 
 export async function getCharacterVariables(characterName: string): Promise<VariableDisplayData | null> {
   const db = await getDb()
   const result = db.exec(
-    `SELECT favorability, obedience, corruption, mood FROM characters WHERE name = '${escapeSql(characterName)}'`
+    `SELECT favorability, obedience, corruption, mood, special_var_name, special_var_value, special_var_stages FROM characters WHERE name = '${escapeSql(characterName)}'`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -111,10 +128,26 @@ export async function getCharacterVariables(characterName: string): Promise<Vari
   }
   
   const row = result[0].values[0]
+  const specialVarName = row[4] as string | null
+  const specialVarValue = row[5] as number | null
+  const specialVarStagesJson = row[6] as string | null
+  
+  let currentStagePersonality: string | undefined
+  if (specialVarName && specialVarValue !== null && specialVarStagesJson) {
+    const stages = JSON.parse(specialVarStagesJson) as SpecialVariableData['分阶段人设']
+    const currentStage = getCurrentStagePersonality(specialVarValue, stages)
+    if (currentStage) {
+      currentStagePersonality = `[${currentStage.阶段名称}] ${currentStage.人格表现}`
+    }
+  }
+  
   return {
     favorability: row[0] as number,
     obedience: row[1] as number,
     corruption: row[2] as number,
-    mood: row[3] as string
+    mood: row[3] as string,
+    specialVarName: specialVarName || undefined,
+    specialVarValue: specialVarValue || undefined,
+    currentStagePersonality
   }
 }

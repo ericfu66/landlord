@@ -8,6 +8,11 @@ interface Choice {
   text: string
 }
 
+interface StickerInfo {
+  url: string
+  emotion: string
+}
+
 interface GalgameDialogProps {
   characterName: string
   characterImage?: string
@@ -19,6 +24,10 @@ interface GalgameDialogProps {
   loading?: boolean
   favorability?: number
   mode?: InteractionMode
+  stickerUrl?: string
+  stickerEmotion?: string
+  onGeneratePortrait?: (emotion: string) => void
+  portraitLoading?: boolean
 }
 
 // Mode info helper
@@ -51,10 +60,22 @@ const getMoodSprite = (mood: string, characterName: string): string => {
     angry: '😠',
     shy: '😊',
     surprised: '😮',
-   默认: '😊'
+    默认: '😊'
   }
   return moodEmoji[mood.toLowerCase()] || moodEmoji['默认']
 }
+
+// Emotion options for real-time portrait editing
+const EMOTION_OPTIONS = [
+  { key: 'happy', label: '😊 开心', emoji: '😊' },
+  { key: 'sad', label: '😢 伤心', emoji: '😢' },
+  { key: 'angry', label: '😠 生气', emoji: '😠' },
+  { key: 'surprised', label: '😮 惊讶', emoji: '😮' },
+  { key: 'shy', label: '😳 害羞', emoji: '😳' },
+  { key: 'love', label: '😍 喜欢', emoji: '😍' },
+  { key: 'sleepy', label: '😴 困倦', emoji: '😴' },
+  { key: 'cool', label: '😎 酷', emoji: '😎' },
+]
 
 export default function GalgameDialog({
   characterName,
@@ -66,12 +87,18 @@ export default function GalgameDialog({
   onModeChange,
   loading,
   favorability = 50,
-  mode: externalMode
+  mode: externalMode,
+  stickerUrl,
+  stickerEmotion,
+  onGeneratePortrait,
+  portraitLoading
 }: GalgameDialogProps) {
   const [input, setInput] = useState('')
   const [displayedText, setDisplayedText] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [internalMode, setInternalMode] = useState<InteractionMode>('daily')
+  const [currentPortrait, setCurrentPortrait] = useState(characterImage)
+  const [showEmotionPanel, setShowEmotionPanel] = useState(false)
   const typingRef = useRef<NodeJS.Timeout | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -83,6 +110,11 @@ export default function GalgameDialog({
       setInternalMode(m)
     }
   }
+
+  // Update current portrait when characterImage prop changes
+  useEffect(() => {
+    setCurrentPortrait(characterImage)
+  }, [characterImage])
 
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null
   const isCharacterSpeaking = lastMessage?.role === 'assistant'
@@ -136,6 +168,12 @@ export default function GalgameDialog({
     }
   }
 
+  // Handle portrait emotion generation
+  const handleEmotionClick = (emotion: string) => {
+    onGeneratePortrait?.(emotion)
+    setShowEmotionPanel(false)
+  }
+
   return (
     <div className="fixed inset-0 overflow-hidden" style={{
       background: `
@@ -174,8 +212,8 @@ export default function GalgameDialog({
         </div>
       )}
 
-      {/* Character sprite - right side */}
-      <div className="absolute right-0 top-24 bottom-32 w-1/2 flex items-end justify-end pr-4 pb-4 z-10">
+      {/* Character sprite - center */}
+      <div className="absolute left-1/2 -translate-x-1/2 top-24 bottom-64 flex items-end justify-center z-10">
         <div className="relative">
           {/* Character image or placeholder */}
           <div
@@ -186,11 +224,15 @@ export default function GalgameDialog({
               boxShadow: '0 0 60px rgba(255,182,193,0.3), inset 0 0 30px rgba(255,182,193,0.1)'
             }}
           >
-            {characterImage ? (
+            {portraitLoading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="animate-spin w-12 h-12 border-4 border-pink-400 border-t-transparent rounded-full" />
+              </div>
+            ) : currentPortrait ? (
               <img
-                src={characterImage}
+                src={currentPortrait}
                 alt={characterName}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-center"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-8xl">
@@ -201,8 +243,52 @@ export default function GalgameDialog({
 
           {/* Character shadow */}
           <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-black/20 blur-xl rounded-full" />
+
+          {/* Real-time portrait button */}
+          {currentPortrait && !portraitLoading && (
+            <button
+              onClick={() => setShowEmotionPanel(!showEmotionPanel)}
+              className="absolute -right-12 bottom-0 p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full shadow-lg hover:scale-110 transition-transform"
+              title="实时立绘"
+            >
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Emotion panel */}
+          {showEmotionPanel && (
+            <div className="absolute -right-16 bottom-12 bg-black/80 backdrop-blur-md rounded-xl p-2 flex flex-col gap-1 z-30">
+              {EMOTION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => handleEmotionClick(opt.key)}
+                  className="px-3 py-1.5 text-xs text-white hover:bg-pink-500/50 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Sticker display - top right */}
+      {stickerUrl && (
+        <div className="absolute top-32 right-4 z-20 animate-bounce">
+          <div className="relative">
+            <img
+              src={stickerUrl}
+              alt="sticker"
+              className="w-24 h-24 md:w-32 md:h-32 object-contain drop-shadow-2xl"
+            />
+            <div className="absolute -bottom-1 -right-1 text-2xl">
+              {EMOTION_OPTIONS.find(e => e.key === stickerEmotion)?.emoji || '💕'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Choice buttons - center */}
       {choices.length > 0 && !isCharacterSpeaking && (
