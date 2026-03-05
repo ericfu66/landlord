@@ -4,6 +4,7 @@ import { getUserById } from '@/lib/auth/repo'
 import { createCharacter, SpecialVariableData } from '@/lib/services/recruit-service'
 import { getGameState, updateGameState } from '@/lib/services/economy-service'
 import { getDb } from '@/lib/db'
+import { updateTaskProgress } from '@/lib/services/task-service'
 
 async function checkAvailableRoom(userId: number): Promise<{ hasRoom: boolean; roomId?: number }> {
   const db = await getDb()
@@ -96,6 +97,9 @@ export async function POST(request: NextRequest) {
       const { updateCharacterPortrait } = await import('@/lib/services/recruit-service')
       await updateCharacterPortrait(newCharacter.name, portraitUrl)
     }
+
+    // 更新招募任务进度
+    updateTaskProgress(session.userId, 'recruit').catch(() => {})
 
     return NextResponse.json({ success: true, character: newCharacter })
   } catch (error) {

@@ -4,6 +4,7 @@ import { getUserById } from '@/lib/auth/repo'
 import { getGameState, updateGameState, dailyReset } from '@/lib/services/economy-service'
 import { getDb, safeInt } from '@/lib/db'
 import { generateDailyNews } from '@/lib/services/news-service'
+import { generateTasks, getLevelInfo, expireOldTasks } from '@/lib/services/task-service'
 
 export async function POST() {
   try {
@@ -35,6 +36,21 @@ export async function POST() {
 
     // 获取更新后的游戏状态
     gameState = await getGameState(session.userId)
+
+    // 1. 过期旧任务
+    await expireOldTasks(session.userId)
+
+    // 2. 生成新任务
+    let newTasks: Awaited<ReturnType<typeof generateTasks>> = []
+    if (user.api_config) {
+      try {
+        const apiConfig = JSON.parse(user.api_config)
+        const today = new Date().toISOString().split('T')[0]
+        newTasks = await generateTasks(session.userId, apiConfig, today)
+      } catch (taskError) {
+        console.error('Generate tasks error:', taskError)
+      }
+    }
 
     // 生成每日新闻
     let dailyNews = null
@@ -81,7 +97,9 @@ export async function POST() {
       state: gameState,
       settlement: settlement,
       hasNews: !!dailyNews,
-      newsTitle: dailyNews?.title || null
+      newsTitle: dailyNews?.title || null,
+      newTasks,
+      levelInfo: await getLevelInfo(session.userId)
     })
   } catch (error) {
     console.error('Advance time error:', error)

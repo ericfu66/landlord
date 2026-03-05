@@ -12,6 +12,7 @@ import { getEnhancedMemoryContext, autoSummarizeInteraction } from '@/lib/servic
 import { getWorldViewById } from '@/lib/services/worldview-service'
 import { resolveWorldViewPlaceholders } from '@/types/worldview'
 import { generateSticker } from '@/lib/ai/image-client'
+import { updateTaskProgress } from '@/lib/services/task-service'
 
 // 转义 SQL 字符串
 function escapeSql(str: string): string {
@@ -382,6 +383,9 @@ ${JSON.stringify(characterData.template, null, 2)}
         }
       }
     }
+
+    // 更新互动任务进度（不阻塞主流程）
+    updateTaskProgress(session.userId, 'interact', body.characterName).catch(() => {})
 
     return NextResponse.json({
       reply,
