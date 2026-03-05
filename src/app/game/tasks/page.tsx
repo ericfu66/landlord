@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, CheckCircle2, Circle, Clock } from 'lucide-react'
+import { useGameState } from '../GameStateContext'
 
 interface Task {
   id: number
@@ -30,6 +31,8 @@ export default function TasksPage() {
   const [allTasks, setAllTasks] = useState<Task[]>([])
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const prevCompletedIds = useRef<Set<number>>(new Set())
+  const { refreshGameState } = useGameState()
 
   const fetchTasks = async () => {
     try {
@@ -37,7 +40,17 @@ export default function TasksPage() {
       const data = await res.json()
       if (data.tasks) setTasks(data.tasks)
       if (data.levelInfo) setLevelInfo(data.levelInfo)
-      if (data.allTasks) setAllTasks(data.allTasks)
+      if (data.allTasks) {
+        setAllTasks(data.allTasks)
+        // 检测新完成的任务，刷新游戏状态以更新金币/XP显示
+        const newlyCompleted = (data.allTasks as Task[]).filter(
+          t => t.status === 'completed' && !prevCompletedIds.current.has(t.id)
+        )
+        if (newlyCompleted.length > 0) {
+          refreshGameState()
+          newlyCompleted.forEach(t => prevCompletedIds.current.add(t.id))
+        }
+      }
     } catch (e) {
       console.error('Failed to fetch tasks:', e)
     } finally {

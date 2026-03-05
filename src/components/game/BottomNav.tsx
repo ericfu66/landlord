@@ -102,8 +102,8 @@ export default function BottomNav() {
           ${isVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}`}
       >
         {/* Mobile: Full width bottom bar with safe area */}
-        <div className="md:hidden bg-gradient-to-t from-black/90 via-black/80 to-transparent pt-4 pb-safe">
-          <div className="bg-[#1a1a1a]/95 backdrop-blur-xl border-t border-amber-500/20 px-2 py-2">
+        <div className="md:hidden pointer-events-none bg-gradient-to-t from-black/90 via-black/80 to-transparent pt-4 pb-safe">
+          <div className="pointer-events-auto bg-[#1a1a1a]/95 backdrop-blur-xl border-t border-amber-500/20 px-2 py-2">
             <div className="flex items-center justify-around overflow-x-auto scrollbar-hide">
               {navItems.map((item) => {
                 const isActive = pathname === item.href ||

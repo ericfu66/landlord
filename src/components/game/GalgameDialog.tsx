@@ -213,7 +213,7 @@ export default function GalgameDialog({
       )}
 
       {/* Character sprite - center */}
-      <div className="absolute left-1/2 -translate-x-1/2 top-24 bottom-64 flex items-end justify-center z-10">
+      <div className="absolute left-1/2 -translate-x-1/2 top-24 bottom-80 md:bottom-64 flex items-end justify-center z-30">
         <div className="relative">
           {/* Character image or placeholder */}
           <div

@@ -61,14 +61,15 @@ export async function getGameState(userId: number): Promise<GameState | null> {
   }
 
   const row = result[0].values[0]
+  // SELECT order: currency(0), energy(1), debt_days(2), total_floors(3), weather(4), current_time(5), current_job(6)
   return {
     userId,
-    currentTime: (row[4] as string) || '08:00',
-    weather: (row[3] as string) || '晴',
     currency: (row[0] as number) ?? 1000,
     energy: (row[1] as number) ?? 3,
     debtDays: (row[2] as number) ?? 0,
     totalFloors: (row[3] as number) ?? 1,
+    weather: (row[4] as string) || '晴',
+    currentTime: (row[5] as string) || '08:00',
     currentJob: row[6] ? JSON.parse(row[6] as string) : null
   }
 }

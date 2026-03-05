@@ -253,7 +253,9 @@ function BuildModal({
   onBuild,
   floors,
   selectedFloor,
-  editingRoom
+  editingRoom,
+  allRooms,
+  onFloorChange
 }: {
   isOpen: boolean
   onClose: () => void
@@ -261,7 +263,67 @@ function BuildModal({
   floors: number
   selectedFloor: number
   editingRoom?: Room | null
+  allRooms: Room[]
+  onFloorChange?: (floor: number) => void
 }) {
+  // 获取指定楼层的房间
+  const getFloorRooms = (floor: number) => {
+    return allRooms.filter((r) => r.floor === floor).sort((a, b) => a.positionStart - b.positionStart)
+  }
+
+  // 计算可用格子范围
+  const getAvailableRanges = (floorNum: number) => {
+    const floorRooms = getFloorRooms(floorNum)
+    const occupied = floorRooms
+      .filter(r => !editingRoom || r.id !== editingRoom.id)
+      .sort((a, b) => a.positionStart - b.positionStart)
+    
+    const available = []
+    let current = 1
+    
+    for (const room of occupied) {
+      if (current < room.positionStart) {
+        available.push({ start: current, end: room.positionStart })
+      }
+      current = Math.max(current, room.positionEnd)
+    }
+    
+    if (current <= 10) {
+      available.push({ start: current, end: 11 })
+    }
+    
+    return available
+  }
+
+  // 获取所有可用起始位置
+  const getAvailableStartPositions = (floorNum: number) => {
+    const floorRooms = getFloorRooms(floorNum)
+    const ranges = getAvailableRanges(floorNum)
+    const positions = []
+    for (const range of ranges) {
+      for (let i = range.start; i < range.end && i <= 10; i++) {
+        positions.push(i)
+      }
+    }
+    return positions
+  }
+
+  // 获取可用结束位置
+  const getAvailableEndPositions = (floorNum: number, startPos: number) => {
+    const floorRooms = getFloorRooms(floorNum)
+    const ranges = getAvailableRanges(floorNum)
+    for (const range of ranges) {
+      if (startPos >= range.start && startPos < range.end) {
+        const positions = []
+        for (let i = startPos + 1; i <= Math.min(range.end - 1, 10); i++) {
+          positions.push(i)
+        }
+        return positions
+      }
+    }
+    return []
+  }
+
   const [form, setForm] = useState({
     floor: selectedFloor,
     positionStart: 1,
@@ -272,6 +334,7 @@ function BuildModal({
     isNewFloor: false
   })
 
+  // 初始化表单
   useEffect(() => {
     if (editingRoom) {
       setForm({
@@ -283,8 +346,26 @@ function BuildModal({
         name: editingRoom.name || '',
         isNewFloor: false
       })
+    } else {
+      // 自动选择第一个可用范围
+      const availableStarts = getAvailableStartPositions(selectedFloor)
+      if (availableStarts.length > 0) {
+        const firstStart = availableStarts[0]
+        const availableEnds = getAvailableEndPositions(selectedFloor, firstStart)
+        if (availableEnds.length > 0) {
+          setForm({
+            floor: selectedFloor,
+            positionStart: firstStart,
+            positionEnd: availableEnds[0],
+            roomType: 'bedroom',
+            description: '',
+            name: '',
+            isNewFloor: false
+          })
+        }
+      }
     }
-  }, [editingRoom])
+  }, [editingRoom, allRooms, selectedFloor])
 
   if (!isOpen) return null
 
@@ -320,7 +401,11 @@ function BuildModal({
             <label className="block text-sm font-medium text-slate-300 mb-2">楼层</label>
             <select
               value={form.floor}
-              onChange={(e) => setForm({ ...form, floor: parseInt(e.target.value) })}
+              onChange={(e) => {
+                const newFloor = parseInt(e.target.value)
+                setForm({ ...form, floor: newFloor })
+                onFloorChange?.(newFloor)
+              }}
               disabled={!!editingRoom}
               className="w-full px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50"
             >
@@ -332,34 +417,113 @@ function BuildModal({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">起始位置（1-10）</label>
-              <select
-                value={form.positionStart}
-                onChange={(e) => setForm({ ...form, positionStart: parseInt(e.target.value) })}
-                disabled={!!editingRoom}
-                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50"
-              >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
-                  <option key={i} value={i}>{i}</option>
-                ))}
-              </select>
+          {!editingRoom && (
+            <div className="p-3 bg-slate-800/50 rounded-xl">
+              <label className="block text-sm font-medium text-slate-300 mb-3">选择位置（只显示可用格子）</label>
+              
+              {/* 可视化格子选择器 */}
+              <div className="mb-4">
+                <div className="flex gap-1">
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((pos) => {
+                    const floorRooms = getFloorRooms(form.floor)
+                    const isOccupied = floorRooms.some(r => 
+                      pos >= r.positionStart && pos < r.positionEnd
+                    )
+                    const isSelected = pos >= form.positionStart && pos < form.positionEnd
+                    
+                    return (
+                      <button
+                        key={pos}
+                        type="button"
+                        onClick={() => {
+                          if (isOccupied) return
+                          // 点击设置起始位置，并尝试保持相同长度
+                          const currentLength = form.positionEnd - form.positionStart
+                          const newEnd = Math.min(pos + currentLength, 11)
+                          // 检查新范围是否可用
+                          const floorRooms = getFloorRooms(form.floor)
+                          const wouldOverlap = floorRooms.some(r => 
+                            pos < r.positionEnd && newEnd > r.positionStart
+                          )
+                          if (wouldOverlap) {
+                            // 找到最大可用结束位置
+                            const nextRoom = floorRooms
+                              .filter(r => r.positionStart > pos)
+                              .sort((a, b) => a.positionStart - b.positionStart)[0]
+                            const maxEnd = nextRoom ? nextRoom.positionStart : 11
+                            setForm({ ...form, positionStart: pos, positionEnd: Math.min(pos + 1, maxEnd) })
+                          } else {
+                            setForm({ ...form, positionStart: pos, positionEnd: newEnd })
+                          }
+                        }}
+                        disabled={isOccupied}
+                        className={`
+                          flex-1 h-10 rounded-md text-xs font-medium transition-all
+                          ${isOccupied 
+                            ? 'bg-red-500/20 text-red-400/50 cursor-not-allowed' 
+                            : isSelected
+                              ? 'bg-violet-500 text-white'
+                              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                          }
+                        `}
+                      >
+                        {pos}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-500 mt-1 px-1">
+                  <span>1</span>
+                  <span>10</span>
+                </div>
+              </div>
+
+              {/* 长度调节 */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">房间长度：{form.positionEnd - form.positionStart} 格</label>
+                <input
+                  type="range"
+                  min={1}
+                  max={(() => {
+                    const floorRooms = getFloorRooms(form.floor)
+                    const nextRoom = floorRooms
+                      .filter(r => r.positionStart > form.positionStart)
+                      .sort((a, b) => a.positionStart - b.positionStart)[0]
+                    return Math.min(10 - form.positionStart + 1, 
+                      nextRoom?.positionStart - form.positionStart || 10 - form.positionStart + 1
+                    )
+                  })()}
+                  value={form.positionEnd - form.positionStart}
+                  onChange={(e) => setForm({ 
+                    ...form, 
+                    positionEnd: form.positionStart + parseInt(e.target.value) 
+                  })}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                  <span>1格</span>
+                  <span>{(() => {
+                    const floorRooms = getFloorRooms(form.floor)
+                    const nextRoom = floorRooms
+                      .filter(r => r.positionStart > form.positionStart)
+                      .sort((a, b) => a.positionStart - b.positionStart)[0]
+                    return Math.min(10 - form.positionStart + 1, 
+                      nextRoom?.positionStart - form.positionStart || 10 - form.positionStart + 1
+                    )
+                  })()}格（最大）</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">结束位置（2-10）</label>
-              <select
-                value={form.positionEnd}
-                onChange={(e) => setForm({ ...form, positionEnd: parseInt(e.target.value) })}
-                disabled={!!editingRoom}
-                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50"
-              >
-                {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-                  <option key={i} value={i}>{i}</option>
-                ))}
-              </select>
+          )}
+
+          {editingRoom && (
+            <div className="p-3 bg-slate-800/50 rounded-xl">
+              <label className="block text-sm font-medium text-slate-300 mb-2">位置</label>
+              <p className="text-slate-400 text-sm">
+                格子 {editingRoom.positionStart} - {editingRoom.positionEnd}（{editingRoom.positionEnd - editingRoom.positionStart}格 · {(editingRoom.positionEnd - editingRoom.positionStart) * 15}㎡）
+              </p>
             </div>
-          </div>
+          )}
 
           {!editingRoom && (
             <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
@@ -456,6 +620,7 @@ export default function BuildPanel() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [showBuildModal, setShowBuildModal] = useState(false)
   const [editingRoom, setEditingRoom] = useState<Room | null>(null)
+  const [selectedFloorForBuild, setSelectedFloorForBuild] = useState(1)
   const [scale, setScale] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -575,6 +740,7 @@ export default function BuildPanel() {
 
   const handleEdit = (room: Room) => {
     setEditingRoom(room)
+    setSelectedFloorForBuild(room.floor)
     setShowBuildModal(true)
   }
 
@@ -682,7 +848,7 @@ export default function BuildPanel() {
       </div>
 
       {/* Bottom Toolbar */}
-      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40">
+      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50">
         <motion.div
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -723,6 +889,7 @@ export default function BuildPanel() {
           <button
             onClick={() => {
               setEditingRoom(null)
+              setSelectedFloorForBuild(1)
               setShowBuildModal(true)
             }}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-xl text-white font-medium hover:opacity-90 transition-opacity"
@@ -759,8 +926,10 @@ export default function BuildPanel() {
         }}
         onBuild={handleBuild}
         floors={floors}
-        selectedFloor={1}
+        selectedFloor={selectedFloorForBuild}
         editingRoom={editingRoom}
+        allRooms={rooms}
+        onFloorChange={setSelectedFloorForBuild}
       />
     </div>
   )
