@@ -31,10 +31,6 @@ export default function TasksPage() {
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchTasks()
-  }, [])
-
   const fetchTasks = async () => {
     try {
       const res = await fetch('/api/tasks')
@@ -48,6 +44,25 @@ export default function TasksPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchTasks()
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTasks()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    const interval = setInterval(fetchTasks, 15000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      clearInterval(interval)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const completedTasks = allTasks.filter(t => t.status === 'completed')
 

@@ -4,7 +4,7 @@ import { getUserById } from '@/lib/auth/repo'
 import { getGameState, updateGameState, dailyReset } from '@/lib/services/economy-service'
 import { getDb, safeInt } from '@/lib/db'
 import { generateDailyNews } from '@/lib/services/news-service'
-import { generateTasks, getLevelInfo, expireOldTasks } from '@/lib/services/task-service'
+import { generateTasks, getLevelInfo, expireOldTasks, updateTaskProgress } from '@/lib/services/task-service'
 
 export async function POST() {
   try {
@@ -39,6 +39,16 @@ export async function POST() {
 
     // 1. 过期旧任务
     await expireOldTasks(session.userId)
+
+    // 收取租金任务进度
+    if (settlement.rentIncome > 0) {
+      updateTaskProgress(session.userId, 'collect_rent', null, settlement.rentIncome).catch(() => {})
+    }
+
+    // 工作天数任务进度
+    if (settlement.salaryIncome > 0) {
+      updateTaskProgress(session.userId, 'work_days').catch(() => {})
+    }
 
     // 2. 生成新任务
     let newTasks: Awaited<ReturnType<typeof generateTasks>> = []

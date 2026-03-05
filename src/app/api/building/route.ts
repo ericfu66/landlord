@@ -5,6 +5,7 @@ import { getRoomsByUser, createRoom, updateRoomType, deleteRoom, addNewFloor } f
 import { calculateBuildCost, BUILD_COSTS } from '@/lib/services/building-service'
 import { deductCurrency, getGameState, updateGameState } from '@/lib/services/economy-service'
 import { getTalentModifiers } from '@/lib/services/talent-service'
+import { updateTaskProgress } from '@/lib/services/task-service'
 
 // 确保游戏状态存在，如果不存在则创建
 async function ensureGameState(userId: number): Promise<boolean> {
@@ -101,6 +102,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: '房间位置无效或重叠' }, { status: 400 })
         }
 
+        // 更新建造任务进度（匹配任意房间或指定类型）
+        updateTaskProgress(session.userId, 'build_room', roomType).catch(() => {})
+        // 更新消费任务进度
+        if (finalCurrency > 0) {
+          updateTaskProgress(session.userId, 'spend_currency', null, finalCurrency).catch(() => {})
+        }
+
         return NextResponse.json({ room, cost })
       }
 
@@ -146,6 +154,9 @@ export async function POST(request: NextRequest) {
         const newFloorNum = await addNewFloor(session.userId)
         await updateGameState(session.userId, { totalFloors: newFloorNum })
         const cost = { currency: floorCost.currency, energy: floorCost.energy }
+
+        // 更新消费任务进度
+        updateTaskProgress(session.userId, 'spend_currency', null, floorCost.currency).catch(() => {})
 
         return NextResponse.json({ floor: newFloorNum, cost })
       }

@@ -10,6 +10,7 @@ import { transferCurrency } from '@/lib/services/transfer-service'
 import { getSummaryContext } from '@/lib/services/group-chat-summary-service'
 import { updateTaskProgress } from '@/lib/services/task-service'
 import { generateSticker } from '@/lib/ai/image-client'
+import { getDb } from '@/lib/db'
 
 interface SendBody {
   content?: string
@@ -128,6 +129,29 @@ const GROUP_CHAT_TOOLS = [
   }
 ]
 
+async function getUserAvatarInfo(userId: number): Promise<string> {
+  const db = await getDb()
+  const result = db.exec(
+    `SELECT avatar_name, avatar_age, avatar_appearance, avatar_personality, avatar_background
+     FROM users WHERE id = ${userId}`
+  )
+
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
+    return ''
+  }
+
+  const row = result[0].values[0]
+  const name = row[0] as string | null
+  if (!name) return ''
+
+  const age = row[1] as number | null
+  const appearance = row[2] as string | null
+  const personality = row[3] as string | null
+  const background = row[4] as string | null
+
+  return `\n【房东信息】\n姓名：${name}${age ? `\n年龄：${age}岁` : ''}${appearance ? `\n外貌：${appearance}` : ''}${personality ? `\n性格：${personality}` : ''}${background ? `\n背景：${background}` : ''}\n`
+}
+
 export async function POST(request: NextRequest) {
   const requestStartedAt = Date.now()
   try {
@@ -169,6 +193,8 @@ export async function POST(request: NextRequest) {
     const characterMap = new Map(characters.map((item) => [item.name, item]))
     const allCharacterNames = characters.map((item) => item.name)
     const mentionedCharacters = sanitizeMentioned(body.mentionedCharacters)
+
+    const userAvatarInfo = await getUserAvatarInfo(session.userId)
 
     // 基础触发角色选择
     let selectedCharacters = selectTriggeredCharacters({
@@ -235,7 +261,7 @@ export async function POST(request: NextRequest) {
               {
                 role: 'system',
                 content: `你正在进行公寓群聊角色扮演。你必须始终以"${characterName}"的身份回复，不要代替其他角色发言。
-
+${userAvatarInfo}
 群聊规则：
 1. 保持简短口语化，符合角色人设
 2. 可以转账给房东（金额1-1000金币）表达感谢或赔偿
@@ -428,7 +454,7 @@ export async function POST(request: NextRequest) {
               {
                 role: 'system',
                 content: `你正在进行公寓群聊角色扮演。你必须始终以"${extraCharacter}"的身份回复。
-
+${userAvatarInfo}
 群聊规则：
 1. 保持简短口语化，符合角色人设
 2. 这是被其他租客 cue 到的回应，可以吐槽或接话

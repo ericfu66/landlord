@@ -96,6 +96,17 @@ export async function buildTaskContext(userId: number): Promise<string> {
 
 // 生成每日任务
 export async function generateTasks(userId: number, apiConfig: AIConfig | null, date: string): Promise<Task[]> {
+  const db = await getDb()
+  const safeUserId = safeInt(userId)
+
+  // 检查今天是否已有任务，避免重复生成
+  const existing = db.exec(`
+    SELECT COUNT(*) FROM tasks WHERE user_id = ${safeUserId} AND created_date = '${date}'
+  `)
+  if ((existing[0]?.values[0]?.[0] as number) > 0) {
+    return getActiveTasks(userId)
+  }
+
   if (!apiConfig) {
     // 无AI配置时生成默认任务
     return generateDefaultTasks(userId, date)
@@ -104,8 +115,6 @@ export async function generateTasks(userId: number, apiConfig: AIConfig | null, 
   const context = await buildTaskContext(userId)
   const result = await generateTasksWithAI(apiConfig, context)
 
-  const db = await getDb()
-  const safeUserId = safeInt(userId)
   const createdTasks: Task[] = []
 
   for (const taskData of result.tasks) {
@@ -283,7 +292,10 @@ export async function updateTaskProgress(
       continue
     }
 
-    const progress = currentProgress + (amount || 1)
+    // reach_favorability 使用绝对值（当前好感度），其他类型使用累加
+    const progress = conditionType === 'reach_favorability'
+      ? (amount || 0)
+      : currentProgress + (amount || 1)
 
     // 更新进度
     db.exec(`UPDATE tasks SET condition_progress = ${progress} WHERE id = ${taskId}`)

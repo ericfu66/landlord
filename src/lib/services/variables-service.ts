@@ -2,6 +2,7 @@ import { getDb, saveDb } from '@/lib/db'
 import { SpecialVariableData } from '@/prompts/character-template'
 import { getCurrentStagePersonality } from './recruit-service'
 import { getTalentModifiers } from './talent-service'
+import { updateTaskProgress } from './task-service'
 
 // 转义 SQL 字符串
 function escapeSql(str: string): string {
@@ -104,6 +105,11 @@ export async function updateCharacterVariables(
     `UPDATE characters SET favorability = ${newFav}, obedience = ${newObey}, corruption = ${newCorrupt}, mood = '${escapeSql(updates.mood)}'${specialVarUpdate} WHERE name = '${escapeSql(characterName)}'`
   )
   saveDb()
+
+  // 触发好感度达成任务检查
+  if (clampedFavDelta !== 0) {
+    updateTaskProgress(userId, 'reach_favorability', characterName, newFav).catch(() => {})
+  }
 
   return true
 }
