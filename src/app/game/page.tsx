@@ -27,6 +27,8 @@ const menuItems = [
   { id: 'work', icon: '💼', label: '打工赚钱', subtitle: '获取收入', href: '/game/work', emoji: '💰' },
   { id: 'presets', icon: '🧩', label: '互动预设', subtitle: '编辑对话规则', href: '/game/presets', emoji: '📝' },
   { id: 'news', icon: '📰', label: '每日新闻', subtitle: '查看新闻', href: '/game/news', emoji: '📰' },
+  { id: 'tasks', icon: '📋', label: '每日任务', subtitle: '完成获取奖励', href: '/game/tasks', emoji: '🎯' },
+  { id: 'talents', icon: '⭐', label: '天赋树', subtitle: '分配天赋点', href: '/game/talents', emoji: '✨' },
   { id: 'saves', icon: '💾', label: '存档管理', subtitle: '保存进度', href: '/game/saves', emoji: '📦' },
 ]
 
