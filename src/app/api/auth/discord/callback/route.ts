@@ -2,10 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDb, saveDb, safeInt, safeSqlString } from '@/lib/db'
 import { createSession } from '@/lib/auth/session'
 
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1461367865608376400'
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || 'wQBUA7k0w6ULeSqTGR4gCLcnCxykUEu9'
+// 从环境变量读取 Discord OAuth 配置
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/api/auth/discord/callback'
 const APP_URL = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || ''
+
+// 验证环境变量配置
+function validateDiscordConfig(): { valid: true } | { valid: false; error: string } {
+  if (!DISCORD_CLIENT_ID) {
+    return { valid: false, error: 'DISCORD_CLIENT_ID not configured' }
+  }
+  if (!DISCORD_CLIENT_SECRET) {
+    return { valid: false, error: 'DISCORD_CLIENT_SECRET not configured' }
+  }
+  return { valid: true }
+}
 
 interface DiscordUser {
   id: string
@@ -22,8 +34,8 @@ async function exchangeCodeForToken(code: string): Promise<{ access_token: strin
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
-      client_id: DISCORD_CLIENT_ID,
-      client_secret: DISCORD_CLIENT_SECRET,
+      client_id: DISCORD_CLIENT_ID!,
+      client_secret: DISCORD_CLIENT_SECRET!,
       grant_type: 'authorization_code',
       code,
       redirect_uri: DISCORD_REDIRECT_URI,
@@ -53,6 +65,15 @@ async function fetchDiscordUser(accessToken: string): Promise<DiscordUser> {
 }
 
 export async function GET(request: NextRequest) {
+  // 首先验证 Discord OAuth 配置
+  const configCheck = validateDiscordConfig()
+  if (!configCheck.valid) {
+    console.error('[Discord OAuth] Configuration error:', configCheck.error)
+    return NextResponse.redirect(
+      new URL('/?error=oauth_not_configured', request.url)
+    )
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')

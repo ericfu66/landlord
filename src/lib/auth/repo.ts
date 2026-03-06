@@ -119,3 +119,58 @@ export async function incrementApiCalls(userId: number): Promise<void> {
   db.run(`UPDATE users SET api_calls_count = api_calls_count + 1 WHERE id = ${safeUserId}`)
   saveDb()
 }
+
+// 获取用户招募次数
+export async function getUserRecruitCount(userId: number): Promise<number> {
+  const db = await getDb()
+  const result = db.exec(
+    `SELECT recruit_count FROM users WHERE id = ${safeInt(userId)}`
+  )
+  
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
+    return 0
+  }
+  
+  return (result[0].values[0][0] as number) || 0
+}
+
+// 增加招募次数并扣除费用，返回新的招募次数
+export async function incrementRecruitCountAndDeductCost(
+  userId: number,
+  cost: number
+): Promise<{ success: boolean; newCount: number; error?: string }> {
+  const db = await getDb()
+  const safeUserId = safeInt(userId)
+  
+  // 检查用户金币是否足够
+  const currencyResult = db.exec(
+    `SELECT currency FROM users WHERE id = ${safeUserId}`
+  )
+  
+  if (!currencyResult || currencyResult.length === 0 || !currencyResult[0].values) {
+    return { success: false, newCount: 0, error: '用户不存在' }
+  }
+  
+  const currentCurrency = (currencyResult[0].values[0][0] as number) || 0
+  
+  if (currentCurrency < cost) {
+    return { success: false, newCount: 0, error: `金币不足，需要 ${cost} 金币` }
+  }
+  
+  // 扣除金币并增加招募次数
+  db.run(`
+    UPDATE users 
+    SET currency = currency - ${cost},
+        recruit_count = recruit_count + 1
+    WHERE id = ${safeUserId}
+  `)
+  saveDb()
+  
+  // 获取新的招募次数
+  const newCountResult = db.exec(
+    `SELECT recruit_count FROM users WHERE id = ${safeUserId}`
+  )
+  const newCount = (newCountResult[0]?.values?.[0]?.[0] as number) || 0
+  
+  return { success: true, newCount }
+}

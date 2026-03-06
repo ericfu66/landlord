@@ -89,6 +89,11 @@ export default function RecruitPage() {
   const [loadingRooms, setLoadingRooms] = useState(true)
   const [generatingSpecialVars, setGeneratingSpecialVars] = useState(false)
   
+  // 招募费用相关状态
+  const [recruitCost, setRecruitCost] = useState(500)
+  const [recruitCount, setRecruitCount] = useState(0)
+  const [loadingCost, setLoadingCost] = useState(true)
+  
   // 世界观相关状态
   const [worldviews, setWorldviews] = useState<WorldView[]>([])
   const [selectedWorldviewId, setSelectedWorldviewId] = useState<number | null>(null)
@@ -97,7 +102,23 @@ export default function RecruitPage() {
   useEffect(() => {
     fetchAvailableRooms()
     fetchWorldviews()
+    fetchRecruitCost()
   }, [])
+
+  const fetchRecruitCost = async () => {
+    try {
+      const res = await fetch('/api/recruit/cost')
+      if (res.ok) {
+        const data = await res.json()
+        setRecruitCost(data.currentCost || 500)
+        setRecruitCount(data.recruitCount || 0)
+      }
+    } catch (error) {
+      console.error('Failed to fetch recruit cost:', error)
+    } finally {
+      setLoadingCost(false)
+    }
+  }
 
   const fetchAvailableRooms = async () => {
     try {
@@ -140,31 +161,55 @@ export default function RecruitPage() {
     setGeneratingSpecialVars(true)
 
     try {
-      const selectedWorldview = worldviews.find(w => w.id === selectedWorldviewId)
+      // 第一步：扣除招募费用
+      const costRes = await fetch('/api/recruit/cost', { method: 'POST' })
+      const costData = await costRes.json()
       
-      const res = await fetch('/api/recruit/generate-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characterType,
-          traits,
-          sourceDescription: characterType === 'crossover' ? sourceDescription : undefined,
-          worldviewId: selectedWorldviewId,
-          worldviewContent: selectedWorldview?.content,
-          count: 3
-        })
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || '生成失败')
+      if (!costRes.ok) {
+        if (costData.code === 'INSUFFICIENT_FUNDS') {
+          setError(`金币不足！本次招募需要 ${costData.required} 金币`)
+        } else {
+          setError(costData.error || '扣除费用失败')
+        }
+        setLoading(false)
+        setGeneratingSpecialVars(false)
         return
       }
 
-      if (data.candidates && data.candidates.length > 0) {
-        setCandidates(data.candidates)
-        setSelectedCandidateId(data.candidates[0].id)
+      // 更新费用状态
+      setRecruitCost(costData.nextCost)
+      setRecruitCount(costData.newRecruitCount)
+      await refreshGameState()
+
+      const selectedWorldview = worldviews.find(w => w.id === selectedWorldviewId)
+      const candidateCount = 2
+
+      // 并行发送多个请求，每个生成一个角色（含分阶段人设）
+      const promises = Array.from({ length: candidateCount }, (_, i) =>
+        fetch('/api/recruit/generate-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            characterType,
+            traits,
+            sourceDescription: characterType === 'crossover' ? sourceDescription : undefined,
+            worldviewId: selectedWorldviewId,
+            worldviewContent: selectedWorldview?.content,
+            seed: i
+          })
+        }).then(async (res) => {
+          const data = await res.json()
+          if (!res.ok) return null
+          return data.candidate as Candidate | null
+        }).catch(() => null)
+      )
+
+      const results = await Promise.all(promises)
+      const validCandidates = results.filter((c): c is Candidate => c !== null)
+
+      if (validCandidates.length > 0) {
+        setCandidates(validCandidates)
+        setSelectedCandidateId(validCandidates[0].id)
       } else {
         setError('未能生成候选角色，请重试')
       }
@@ -363,7 +408,13 @@ export default function RecruitPage() {
               disabled={loading || availableRooms === 0}
               className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-sm touch-target"
             >
-              {loading ? '生成中...' : availableRooms === 0 ? '请先去建造房间' : '生成候选租客（3位）'}
+              {loading ? '生成中...' : availableRooms === 0 ? '请先去建造房间' : (
+                <span className="flex items-center justify-center gap-2">
+                  <span>生成候选租客</span>
+                  <span className="text-yellow-300">💰 {loadingCost ? '...' : recruitCost}</span>
+                  {recruitCount > 0 && <span className="text-xs opacity-70">(第{recruitCount + 1}次)</span>}
+                </span>
+              )}
             </button>
           </div>
         ) : (

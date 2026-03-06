@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { getRemoteBuilding, getRemoteCharacters, getRemoteCharacter } from '@/lib/services/multiplayer-service'
+import { getUserById } from '@/lib/auth/repo'
 
 export async function GET(
   request: NextRequest,
@@ -26,7 +27,11 @@ export async function GET(
     // 获取角色信息
     const characters = await getRemoteCharacters(hostUserId)
     
-    return NextResponse.json({ building, characters })
+    // 获取房东名称
+    const hostUser = await getUserById(hostUserId)
+    const hostName = hostUser?.username || '房东'
+    
+    return NextResponse.json({ building, characters, hostName })
   } catch (error) {
     console.error('Get remote building error:', error)
     return NextResponse.json({ error: '获取建筑信息失败' }, { status: 500 })

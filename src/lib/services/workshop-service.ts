@@ -7,11 +7,12 @@ import { getCharactersByUser } from './recruit-service'
 export async function getPublicWorkshopItems(type?: WorkshopItemType): Promise<WorkshopItem[]> {
   const db = await getDb()
   
+  // 使用 LEFT JOIN 确保即使作者信息缺失也能显示作品
   let query = `
     SELECT w.id, w.type, w.user_id, w.original_id, w.name, w.description, 
            w.data, w.downloads, w.rating, w.is_public, w.created_at, u.username as author_name
     FROM workshop_items w
-    JOIN users u ON w.user_id = u.id
+    LEFT JOIN users u ON w.user_id = u.id
     WHERE w.is_public = 1
   `
   
@@ -20,28 +21,33 @@ export async function getPublicWorkshopItems(type?: WorkshopItemType): Promise<W
     query += ` AND w.type = '${safeType}'`
   }
   
-  query += ` ORDER BY w.downloads DESC, w.created_at DESC`
+  query += ` ORDER BY w.created_at DESC`
   
-  const result = db.exec(query)
-  
-  if (!result || result.length === 0 || !result[0].values) {
+  try {
+    const result = db.exec(query)
+    
+    if (!result || result.length === 0 || !result[0].values) {
+      return []
+    }
+    
+    return result[0].values.map((row: unknown[]) => ({
+      id: row[0] as number,
+      type: row[1] as WorkshopItemType,
+      userId: row[2] as number,
+      originalId: row[3] as string,
+      name: row[4] as string,
+      description: row[5] as string,
+      data: row[6] as string,
+      downloads: row[7] as number,
+      rating: row[8] as number,
+      isPublic: row[9] === 1,
+      createdAt: row[10] as string,
+      authorName: (row[11] as string) || '未知作者'
+    }))
+  } catch (error) {
+    console.error('getPublicWorkshopItems error:', error)
     return []
   }
-  
-  return result[0].values.map((row: unknown[]) => ({
-    id: row[0] as number,
-    type: row[1] as WorkshopItemType,
-    userId: row[2] as number,
-    originalId: row[3] as string,
-    name: row[4] as string,
-    description: row[5] as string,
-    data: row[6] as string,
-    downloads: row[7] as number,
-    rating: row[8] as number,
-    isPublic: row[9] === 1,
-    createdAt: row[10] as string,
-    authorName: row[11] as string
-  }))
 }
 
 export async function uploadToWorkshop(

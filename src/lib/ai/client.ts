@@ -2,6 +2,10 @@ export interface AIConfig {
   baseUrl: string
   apiKey: string
   model: string
+  temperature?: number
+  top_p?: number
+  top_k?: number
+  max_tokens?: number
 }
 
 export interface ChatMessage {
@@ -66,8 +70,10 @@ export async function createChatCompletion(
     body: JSON.stringify({
       model: request.model || config.model,
       messages: request.messages,
-      temperature: request.temperature ?? 0.7,
-      max_tokens: request.max_tokens,
+      temperature: request.temperature ?? config.temperature ?? 0.7,
+      max_tokens: request.max_tokens ?? config.max_tokens,
+      ...(config.top_p !== undefined && { top_p: config.top_p }),
+      ...(config.top_k !== undefined && { top_k: config.top_k }),
       tools: request.tools,
       tool_choice: request.tool_choice
     })

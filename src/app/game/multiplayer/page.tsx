@@ -10,7 +10,7 @@ function CyberpunkUserCard({ user, onVisit }: { user: VisitableUser; onVisit: ()
   return (
     <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-cyan-500/30 hover:border-cyan-400 transition-all duration-500 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]">
       {/* 动态网格背景 */}
-      <div className="absolute inset-0 opacity-20">
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
         <div className="absolute inset-0" style={{
           backgroundImage: `
             linear-gradient(rgba(6,182,212,0.1) 1px, transparent 1px),
@@ -184,7 +184,7 @@ export default function MultiplayerPage() {
     <div className="max-w-6xl mx-auto px-2 sm:px-0">
       {/* 赛博朋克风格标题 */}
       <div className="text-center mb-6 sm:mb-8 relative">
-        <div className="absolute inset-0 flex items-center justify-center opacity-10">
+        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
           <div className="w-40 h-40 sm:w-64 sm:h-64 bg-cyan-500 rounded-full blur-[100px]" />
           <div className="w-40 h-40 sm:w-64 sm:h-64 bg-fuchsia-500 rounded-full blur-[100px] -ml-20 sm:-ml-32" />
         </div>

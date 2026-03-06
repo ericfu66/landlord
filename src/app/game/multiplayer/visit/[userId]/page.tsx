@@ -10,16 +10,16 @@ function CyberpunkFloor({ floor }: { floor: any }) {
   return (
     <div className="relative mb-8">
       {/* 楼层标签 */}
-      <div className="absolute -left-16 top-1/2 -translate-y-1/2">
+      <div className="absolute -left-16 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
         <div className="bg-gradient-to-r from-cyan-600 to-cyan-500 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-[0_0_15px_rgba(6,182,212,0.5)]">
           F{floor.floor}
         </div>
       </div>
       
       {/* 楼层容器 */}
-      <div className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 rounded-xl p-6 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
+      <div className="relative bg-gradient-to-r from-slate-800/80 to-slate-900/80 rounded-xl p-6 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
         {/* 连接线装饰 */}
-        <div className="absolute left-0 top-1/2 w-4 h-0.5 bg-cyan-500/50" />
+        <div className="absolute -left-6 top-1/2 w-6 h-0.5 bg-cyan-500/50" />
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {floor.rooms.map((room: any) => (
@@ -145,31 +145,59 @@ function getMoodEmoji(mood: string): string {
 // 赛博朋克风格聊天对话框
 function CyberpunkChatModal({ 
   character, 
+  hostUserId,
   onClose 
 }: { 
   character: RemoteCharacter; 
+  hostUserId: number;
   onClose: () => void;
 }) {
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSend = async () => {
     if (!input.trim()) return
     
     const userMessage = input.trim()
     setInput('')
+    setError(null)
     setMessages(prev => [...prev, { role: 'user', content: userMessage }])
     setIsTyping(true)
     
-    // 模拟AI回复
-    setTimeout(() => {
+    try {
+      // 调用真实的联机互动API
+      const res = await fetch('/api/multiplayer/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostUserId,
+          characterName: character.name,
+          message: userMessage
+        })
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || '互动失败')
+      }
+      
+      const data = await res.json()
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `你好！我是${character.name}，很高兴认识你～（访客模式下不保存对话）` 
+        content: data.reply 
       }])
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : '互动失败，请稍后重试'
+      setError(errorMsg)
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: `（系统提示：${errorMsg}）` 
+      }])
+    } finally {
       setIsTyping(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -249,7 +277,7 @@ function CyberpunkChatModal({
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="输入消息..."
               className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-fuchsia-500/50 focus:ring-1 focus:ring-fuchsia-500/30"
             />
@@ -276,6 +304,7 @@ export default function VisitPage() {
   const [characters, setCharacters] = useState<RemoteCharacter[]>([])
   const [hostName, setHostName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'building' | 'characters'>('building')
   const [selectedCharacter, setSelectedCharacter] = useState<RemoteCharacter | null>(null)
 
@@ -287,15 +316,28 @@ export default function VisitPage() {
 
   const fetchData = async () => {
     try {
+      setLoading(true)
+      setError(null)
       const res = await fetch(`/api/multiplayer/visit/${userId}`)
       if (res.ok) {
         const data = await res.json()
         setBuilding(data.building)
         setCharacters(data.characters || [])
         setHostName(data.hostName || '房东')
+      } else if (res.status === 403) {
+        setError('该用户不允许访问')
+        setBuilding(null)
+      } else if (res.status === 404) {
+        setError('用户不存在')
+        setBuilding(null)
+      } else {
+        setError('获取数据失败')
+        setBuilding(null)
       }
-    } catch (error) {
-      console.error('Fetch visit data error:', error)
+    } catch (err) {
+      console.error('Fetch visit data error:', err)
+      setError('网络错误，请稍后重试')
+      setBuilding(null)
     } finally {
       setLoading(false)
     }
@@ -312,13 +354,24 @@ export default function VisitPage() {
     )
   }
 
-  if (!building) {
+  if (!building || error) {
     return (
-      <div className="text-center py-16">
-        <div className="inline-block p-6 rounded-2xl bg-slate-800/50 border border-slate-700">
-          <Building2 size={48} className="mx-auto mb-4 text-slate-500" />
-          <p className="text-slate-400">无法访问该用户的基建</p>
-          <p className="text-sm text-slate-500 mt-2">该用户可能关闭了访问权限</p>
+      <div className="max-w-6xl mx-auto">
+        {/* 返回按钮 */}
+        <button
+          onClick={() => router.back()}
+          className="mb-6 flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors"
+        >
+          <ArrowLeft size={20} />
+          返回联机中心
+        </button>
+        
+        <div className="text-center py-16">
+          <div className="inline-block p-6 rounded-2xl bg-slate-800/50 border border-slate-700">
+            <Building2 size={48} className="mx-auto mb-4 text-slate-500" />
+            <p className="text-slate-400">{error || '无法访问该用户的基建'}</p>
+            <p className="text-sm text-slate-500 mt-2">该用户可能关闭了访问权限</p>
+          </div>
         </div>
       </div>
     )
@@ -337,7 +390,7 @@ export default function VisitPage() {
 
       {/* 房东信息头 */}
       <div className="text-center mb-8 relative">
-        <div className="absolute inset-0 flex items-center justify-center opacity-10">
+        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
           <div className="w-96 h-96 bg-cyan-500 rounded-full blur-[120px]" />
         </div>
         
@@ -389,7 +442,7 @@ export default function VisitPage() {
       {activeTab === 'building' && (
         <div className="relative pl-20">
           {/* 垂直时间线 */}
-          <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500 via-fuchsia-500 to-cyan-500" />
+          <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500 via-fuchsia-500 to-cyan-500 pointer-events-none" />
           
           {building.floors.map((floor) => (
             <CyberpunkFloor key={floor.floor} floor={floor} />
@@ -422,6 +475,7 @@ export default function VisitPage() {
       {selectedCharacter && (
         <CyberpunkChatModal
           character={selectedCharacter}
+          hostUserId={userId}
           onClose={() => setSelectedCharacter(null)}
         />
       )}

@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '1461367865608376400'
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/api/auth/discord/callback'
-const DISCORD_SCOPE = 'identify email'
+const DISCORD_SCOPE = 'identify'
 
 export async function GET(request: NextRequest) {
+  // 验证 Discord OAuth 配置
+  if (!DISCORD_CLIENT_ID) {
+    console.error('[Discord OAuth] DISCORD_CLIENT_ID not configured')
+    return NextResponse.redirect(
+      new URL('/?error=oauth_not_configured', request.url)
+    )
+  }
+
   // 生成状态参数防止CSRF
   const state = Buffer.from(JSON.stringify({
     timestamp: Date.now(),

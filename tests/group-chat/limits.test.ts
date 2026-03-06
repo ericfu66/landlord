@@ -1,12 +1,19 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, runMigrations, saveDb } from '@/lib/db'
 
-const { getSessionMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn()
+const { getSessionMock, createChatCompletionMock } = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  createChatCompletionMock: vi.fn(async () => ({
+    choices: [{ message: { content: '限制测试AI回复' } }]
+  }))
 }))
 
 vi.mock('@/lib/auth/session', () => ({
   getSession: getSessionMock
+}))
+
+vi.mock('@/lib/ai/client', () => ({
+  createChatCompletion: createChatCompletionMock
 }))
 
 import { POST } from '@/app/api/group-chat/send/route'
@@ -42,13 +49,14 @@ describe('group chat limits', () => {
   beforeEach(async () => {
     resetGroupChatCooldownForTest()
     getSessionMock.mockReset()
+    createChatCompletionMock.mockClear()
     getSessionMock.mockResolvedValue({ userId: 9910, username: 'gc_limit_user', role: 'user' })
 
     const db = await getDb()
     db.run('DELETE FROM group_chat_messages WHERE save_id = 9910')
     db.run('DELETE FROM characters WHERE user_id = 9910')
     db.run('DELETE FROM users WHERE id = 9910')
-    db.run("INSERT INTO users (id, username, password_hash) VALUES (9910, 'gc_limit_user', 'hash')")
+    db.run("INSERT INTO users (id, username, password_hash, api_config) VALUES (9910, 'gc_limit_user', 'hash', '{\"baseUrl\":\"https://api.test\",\"apiKey\":\"test-key\",\"model\":\"test-model\"}')")
 
     for (let i = 0; i < 12; i += 1) {
       db.run(

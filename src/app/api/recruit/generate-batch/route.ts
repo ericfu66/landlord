@@ -1,26 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { getUserById } from '@/lib/auth/repo'
-import { getDb } from '@/lib/db'
 import { createChatCompletion } from '@/lib/ai/client'
 import { CHARACTER_TEMPLATE_PROMPT, GENERATE_CHARACTER_TOOL, SPECIAL_VARIABLE_PROMPT, GENERATE_SPECIAL_VAR_TOOL, SpecialVariableData } from '@/prompts/character-template'
 import { normalizeCharacter, CharacterTemplate } from '@/lib/services/recruit-service'
 import { AIConfig } from '@/lib/ai/client'
-import { incrementApiCalls } from '@/lib/auth/repo'
+import { updateTaskProgress } from '@/lib/services/task-service'
 
 /**
  * Extract valid JSON from a string that may contain extra content
+ * Supports both objects {} and arrays []
  */
 function extractValidJson(str: string): string {
-  let start = str.indexOf('{')
-  if (start === -1) throw new Error('No JSON object found')
+  const trimmed = str.trim()
+  
+  // Try to find JSON object starting with {
+  let braceStart = trimmed.indexOf('{')
+  // Try to find JSON array starting with [
+  let bracketStart = trimmed.indexOf('[')
+  
+  // Determine which comes first (if both exist)
+  let start = -1
+  let isArray = false
+  
+  if (braceStart !== -1 && bracketStart !== -1) {
+    // Both found, use the one that comes first
+    if (braceStart < bracketStart) {
+      start = braceStart
+      isArray = false
+    } else {
+      start = bracketStart
+      isArray = true
+    }
+  } else if (braceStart !== -1) {
+    start = braceStart
+    isArray = false
+  } else if (bracketStart !== -1) {
+    start = bracketStart
+    isArray = true
+  }
+  
+  if (start === -1) {
+    // No JSON structure found, try to parse the whole string as JSON
+    try {
+      JSON.parse(trimmed)
+      return trimmed
+    } catch {
+      throw new Error('No JSON object or array found')
+    }
+  }
   
   let braceCount = 0
+  let bracketCount = 0
   let inString = false
   let escapeNext = false
   
-  for (let i = start; i < str.length; i++) {
-    const char = str[i]
+  for (let i = start; i < trimmed.length; i++) {
+    const char = trimmed[i]
     
     if (escapeNext) {
       escapeNext = false
@@ -42,14 +78,38 @@ function extractValidJson(str: string): string {
         braceCount++
       } else if (char === '}') {
         braceCount--
-        if (braceCount === 0) {
-          return str.substring(start, i + 1)
+        if (!isArray && braceCount === 0) {
+          return trimmed.substring(start, i + 1)
+        }
+      } else if (char === '[') {
+        bracketCount++
+      } else if (char === ']') {
+        bracketCount--
+        if (isArray && bracketCount === 0) {
+          return trimmed.substring(start, i + 1)
         }
       }
     }
   }
   
-  throw new Error('Incomplete JSON: no matching closing brace found')
+  // If we couldn't find a complete structure, try parsing from start
+  // This handles cases where the JSON might be cut off or malformed
+  try {
+    // Try to find the longest valid JSON substring
+    for (let i = trimmed.length; i > start; i--) {
+      const substring = trimmed.substring(start, i)
+      try {
+        JSON.parse(substring)
+        return substring
+      } catch {
+        // Continue trying shorter substrings
+      }
+    }
+  } catch {
+    // Fall through to error
+  }
+  
+  throw new Error('Incomplete JSON: no matching closing brace/bracket found')
 }
 
 interface Candidate {
@@ -157,6 +217,11 @@ async function generateSpecialVariable(
   return specialVarData
 }
 
+// 计算招募费用：第一次500，每次+100
+function calculateRecruitCost(recruitCount: number): number {
+  return 500 + recruitCount * 100
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession()
@@ -170,57 +235,38 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { characterType, traits, sourceDescription, worldviewId, worldviewContent, count = 3 } = body
+    const { characterType, traits, sourceDescription, worldviewId, worldviewContent, seed = 0 } = body
 
     if (!characterType || !traits) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
     }
 
     const config = JSON.parse(user.api_config as string)
-    const candidates: Candidate[] = []
-    const generatedNames: string[] = []
 
-    // 生成多个角色
-    for (let i = 0; i < count; i++) {
-      try {
-        const character = await generateSingleCharacter(
-          config,
-          characterType,
-          traits,
-          sourceDescription,
-          worldviewContent,
-          i
-        )
+    // 生成单个角色
+    const character = await generateSingleCharacter(
+      config,
+      characterType,
+      traits,
+      sourceDescription,
+      worldviewContent,
+      seed
+    )
 
-        if (character && !generatedNames.includes(character.角色档案.基本信息.姓名)) {
-          generatedNames.push(character.角色档案.基本信息.姓名)
-          
-          // 为每个角色生成特殊变量
-          const specialVar = await generateSpecialVariable(config, character)
-          
-          candidates.push({
-            id: `candidate_${i + 1}`,
-            character,
-            specialVar: specialVar || undefined
-          })
-
-          // 每次生成后增加API调用计数
-          await incrementApiCalls(session.userId)
-          // 再增加一次用于特殊变量生成
-          if (specialVar) {
-            await incrementApiCalls(session.userId)
-          }
-        }
-      } catch (err) {
-        console.error(`Failed to generate candidate ${i + 1}:`, err)
-      }
-    }
-
-    if (candidates.length === 0) {
+    if (!character) {
       return NextResponse.json({ error: '生成角色失败，请重试' }, { status: 500 })
     }
 
-    return NextResponse.json({ candidates })
+    // 生成特殊变量（分阶段人设）
+    const specialVar = await generateSpecialVariable(config, character)
+
+    const candidate: Candidate = {
+      id: `candidate_${seed + 1}`,
+      character,
+      specialVar: specialVar || undefined
+    }
+
+    return NextResponse.json({ candidate })
   } catch (error) {
     console.error('Generate batch characters error:', error)
     return NextResponse.json(

@@ -133,6 +133,7 @@ export default function WorkshopPage() {
 
   const fetchItems = async () => {
     setLoading(true)
+    setError('')
     try {
       if (activeTab === 'browse') {
         const url = filterType === 'all' 
@@ -142,16 +143,25 @@ export default function WorkshopPage() {
         if (res.ok) {
           const data = await res.json()
           setItems(data.items || [])
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setError(data.error || '获取作品列表失败')
+          setItems([])
         }
       } else {
         const res = await fetch('/api/workshop/my')
         if (res.ok) {
           const data = await res.json()
           setItems(data.items || [])
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setError(data.error || '获取我的上传失败')
+          setItems([])
         }
       }
     } catch (err) {
-      setError('获取数据失败')
+      setError('网络错误，请稍后重试')
+      setItems([])
     } finally {
       setLoading(false)
     }

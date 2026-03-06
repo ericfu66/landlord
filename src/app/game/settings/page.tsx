@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, Save, Settings, AlertCircle, CheckCircle } from 'lucide-react'
+import { LogOut, Save, Settings, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface AIModel {
   id: string
@@ -15,6 +15,11 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
   const [models, setModels] = useState<AIModel[]>([])
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [temperature, setTemperature] = useState('')
+  const [topP, setTopP] = useState('')
+  const [topK, setTopK] = useState('')
+  const [maxTokens, setMaxTokens] = useState('')
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -37,12 +42,16 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/auth/me')
       const data = await res.json()
-      
-      if (data.user?.api_config) {
-        const config = JSON.parse(data.user.api_config)
+
+      if (data.user?.apiConfig) {
+        const config = data.user.apiConfig
         setBaseUrl(config.baseUrl || '')
         setApiKey(config.apiKey || '')
         setModel(config.model || '')
+        if (config.temperature !== undefined) setTemperature(String(config.temperature))
+        if (config.top_p !== undefined) setTopP(String(config.top_p))
+        if (config.top_k !== undefined) setTopK(String(config.top_k))
+        if (config.max_tokens !== undefined) setMaxTokens(String(config.max_tokens))
       }
     } catch (error) {
       console.error('Load config error:', error)
@@ -94,7 +103,7 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ baseUrl, apiKey, fetchOnly: true })
       })
-      
+
       if (!res.ok) {
         const data = await res.json()
         setMessage({ type: 'error', text: data.error || '获取模型失败' })
@@ -111,6 +120,16 @@ export default function SettingsPage() {
     }
   }
 
+  const buildConfigBody = () => ({
+    baseUrl,
+    apiKey,
+    model: model || 'gpt-4o',
+    ...(temperature !== '' && !isNaN(Number(temperature)) && { temperature: Number(temperature) }),
+    ...(topP !== '' && !isNaN(Number(topP)) && { top_p: Number(topP) }),
+    ...(topK !== '' && !isNaN(Number(topK)) && { top_k: Number(topK) }),
+    ...(maxTokens !== '' && !isNaN(Number(maxTokens)) && { max_tokens: Number(maxTokens) }),
+  })
+
   const saveConfig = async () => {
     if (!baseUrl || !apiKey) {
       setMessage({ type: 'error', text: '请填写 Base URL 和 API Key' })
@@ -124,7 +143,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/ai/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseUrl, apiKey, model })
+        body: JSON.stringify(buildConfigBody())
       })
 
       const data = await res.json()
@@ -144,7 +163,7 @@ export default function SettingsPage() {
   const quickSave = async () => {
     setIsSaving(true)
     setMessage(null)
-    
+
     try {
       const res = await fetch('/api/saves', {
         method: 'POST',
@@ -173,7 +192,7 @@ export default function SettingsPage() {
     setIsLoggingOut(true)
     try {
       const res = await fetch('/api/auth/logout', { method: 'POST' })
-      
+
       if (res.ok) {
         router.push('/login')
       } else {
@@ -192,8 +211,8 @@ export default function SettingsPage() {
       {/* 消息提示 */}
       {message && (
         <div className={`fixed top-20 sm:top-24 left-1/2 -translate-x-1/2 z-50 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all text-sm ${
-          message.type === 'success' 
-            ? 'bg-green-500/90 text-white' 
+          message.type === 'success'
+            ? 'bg-green-500/90 text-white'
             : 'bg-red-500/90 text-white'
         }`}>
           {message.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
@@ -210,9 +229,8 @@ export default function SettingsPage() {
             </div>
             <h1 className="text-xl sm:text-2xl font-bold">设置</h1>
           </div>
-          
+
           <div className="flex gap-2">
-            {/* 快速保存按钮 */}
             <button
               onClick={quickSave}
               disabled={isSaving}
@@ -221,8 +239,7 @@ export default function SettingsPage() {
               <Save size={14} />
               {isSaving ? '保存中...' : '保存游戏'}
             </button>
-            
-            {/* 登出按钮 */}
+
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
@@ -280,23 +297,112 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {models.length > 0 && (
-            <div>
-              <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">选择模型</label>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-              >
-                <option value="">请选择模型</option>
+          {/* 模型选择 + 手动输入 */}
+          <div>
+            <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">模型</label>
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              placeholder="手动输入模型名称，如 gpt-4o"
+              list="model-list"
+            />
+            {models.length > 0 && (
+              <datalist id="model-list">
                 {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
+                  <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
-              </select>
-            </div>
-          )}
+              </datalist>
+            )}
+            {models.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">已获取 {models.length} 个模型，可从建议中选择或直接输入</p>
+            )}
+          </div>
+
+          {/* 高级参数 */}
+          <div>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              高级参数（可选）
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-3 space-y-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-gray-400">
+                      Temperature
+                      <span className="ml-1 text-gray-600">0~2</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={temperature}
+                      onChange={(e) => setTemperature(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      placeholder="0.7"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-gray-400">
+                      Top P
+                      <span className="ml-1 text-gray-600">0~1</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={topP}
+                      onChange={(e) => setTopP(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      placeholder="留空使用默认"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-gray-400">
+                      Top K
+                      <span className="ml-1 text-gray-600">整数</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={topK}
+                      onChange={(e) => setTopK(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      placeholder="留空使用默认"
+                      min="1"
+                      step="1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-gray-400">
+                      Max Tokens
+                      <span className="ml-1 text-gray-600">整数</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={maxTokens}
+                      onChange={(e) => setMaxTokens(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      placeholder="留空使用默认"
+                      min="1"
+                      step="256"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600">留空的参数将使用模型默认值。部分参数不被所有模型支持。</p>
+              </div>
+            )}
+          </div>
 
           <button
             onClick={saveConfig}

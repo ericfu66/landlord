@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { InteractionMode } from '@/types/preset'
 
 interface Choice {
@@ -99,6 +100,7 @@ export default function GalgameDialog({
   const [internalMode, setInternalMode] = useState<InteractionMode>('daily')
   const [currentPortrait, setCurrentPortrait] = useState(characterImage)
   const [showEmotionPanel, setShowEmotionPanel] = useState(false)
+  const [portraitHidden, setPortraitHidden] = useState(false)
   const typingRef = useRef<NodeJS.Timeout | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -212,15 +214,46 @@ export default function GalgameDialog({
         </div>
       )}
 
-      {/* Character sprite - center */}
-      <div className="absolute left-1/2 -translate-x-1/2 top-24 bottom-80 md:bottom-64 flex items-end justify-center z-30">
+      {/* Character sprite - draggable & hideable */}
+      {portraitHidden ? (
+        <button
+          onClick={() => setPortraitHidden(false)}
+          className="absolute top-24 left-4 z-40 px-3 py-1.5 bg-pink-500/80 backdrop-blur-sm rounded-full text-white text-xs hover:bg-pink-400 transition-colors flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          显示立绘
+        </button>
+      ) : (
+      <motion.div
+        drag
+        dragMomentum={false}
+        dragElastic={0}
+        className="absolute left-1/2 top-24 z-30 cursor-grab active:cursor-grabbing"
+        style={{ x: '-50%' }}
+      >
         <div className="relative">
-          {/* Character image or placeholder */}
+          {/* 拖动/隐藏控制栏 */}
+          <div className="flex items-center justify-between px-2 py-1 bg-black/60 backdrop-blur-sm rounded-t-xl border border-pink-500/30">
+            <span className="text-[10px] text-pink-300/70 select-none">≡ 拖动</span>
+            <button
+              onClick={() => { setPortraitHidden(true); setShowEmotionPanel(false) }}
+              className="text-gray-400 hover:text-white text-xs px-1 leading-none"
+              title="隐藏立绘"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Character image */}
           <div
-            className="w-64 h-80 md:w-80 md:h-96 rounded-t-3xl overflow-hidden shadow-2xl"
+            className="w-48 h-64 md:w-64 md:h-80 overflow-hidden"
             style={{
               background: 'linear-gradient(180deg, rgba(255,182,193,0.2) 0%, rgba(255,192,203,0.1) 100%)',
               border: '2px solid rgba(255,182,193,0.3)',
+              borderTop: 'none',
               boxShadow: '0 0 60px rgba(255,182,193,0.3), inset 0 0 30px rgba(255,182,193,0.1)'
             }}
           >
@@ -248,10 +281,10 @@ export default function GalgameDialog({
           {currentPortrait && !portraitLoading && (
             <button
               onClick={() => setShowEmotionPanel(!showEmotionPanel)}
-              className="absolute -right-12 bottom-0 p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full shadow-lg hover:scale-110 transition-transform"
+              className="absolute -right-10 bottom-0 p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full shadow-lg hover:scale-110 transition-transform"
               title="实时立绘"
             >
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </button>
@@ -272,7 +305,8 @@ export default function GalgameDialog({
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
+      )}
 
       {/* Sticker display - top right */}
       {stickerUrl && (

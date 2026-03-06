@@ -101,14 +101,15 @@ export default function DailyNewsPopup() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
             onClick={handleClose}
           />
-          
+
+          {/* 弹窗居中容器 */}
+          <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
           {/* 新闻弹窗 */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 
-                       md:w-full md:max-w-2xl md:max-h-[80vh] z-50"
+            className="w-full max-w-2xl max-h-[80vh] pointer-events-auto"
           >
             <div className="glass-card h-full flex flex-col overflow-hidden">
               {/* 头部 */}
@@ -223,6 +224,7 @@ export default function DailyNewsPopup() {
               </div>
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
