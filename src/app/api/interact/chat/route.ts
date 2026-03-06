@@ -250,8 +250,9 @@ ${enhancedMemory.relationshipWithUser}${currentStageInfo}`
     // RAG 记忆检索 - 仅在用户启用时
     let ragContext = ''
     const ragEnabled = await isRagMemoryEnabled(session.userId)
+    let ragConfig = null  // 复用配置，避免重复查询
     if (ragEnabled) {
-      const ragConfig = await getRagEmbeddingConfig(session.userId)
+      ragConfig = await getRagEmbeddingConfig(session.userId)
       if (ragConfig) {
         try {
           const ragResults = await searchRagMemories(
@@ -366,21 +367,19 @@ ${JSON.stringify(characterData.template, null, 2)}
     )
 
     // 保存到 RAG 记忆（异步，不阻塞响应）
-    if (ragEnabled) {
-      const ragConfig = await getRagEmbeddingConfig(session.userId)
-      if (ragConfig) {
-        // 构建记忆内容
-        const memoryContent = `用户说：${userInput}\n你回复：${reply}`
-        addRagMemory(
-          characterName,
-          session.userId,
-          memoryContent,
-          'interaction',
-          ragConfig
-        ).catch(error => {
-          console.error('[Chat] Failed to save RAG memory:', error)
-        })
-      }
+    if (ragEnabled && ragConfig) {
+      // 复用之前获取的 ragConfig，避免重复查询
+      // 构建记忆内容
+      const memoryContent = `用户说：${userInput}\n你回复：${reply}`
+      addRagMemory(
+        characterName,
+        session.userId,
+        memoryContent,
+        'interaction',
+        ragConfig
+      ).catch(error => {
+        console.error('[Chat] Failed to save RAG memory:', error)
+      })
     }
 
     // Parse choices from reply
