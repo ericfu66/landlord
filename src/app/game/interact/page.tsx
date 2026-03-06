@@ -81,8 +81,45 @@ function InteractContent() {
     if (characterName) {
       fetchCharacterData()
       fetchDiaries()
+      enterInteraction()
     }
   }, [characterName])
+
+  // 进入互动时扣除体力（使用 sessionStorage 防止刷新重复扣费）
+  const enterInteraction = async () => {
+    if (!characterName) return
+    
+    // 检查当前会话是否已经进入过互动
+    const sessionKey = `interact_entered_${characterName}`
+    if (sessionStorage.getItem(sessionKey)) {
+      return // 当前会话已进入过，不重复扣费
+    }
+
+    try {
+      const res = await fetch('/api/interact/enter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterName })
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        // 标记当前会话已进入互动
+        sessionStorage.setItem(sessionKey, 'true')
+        // 刷新游戏状态以更新体力显示
+        await refreshGameState()
+      } else {
+        // 体力不足或其他错误，返回角色列表
+        alert(data.error || '进入互动失败')
+        router.push('/game/characters')
+      }
+    } catch (error) {
+      console.error('Enter interaction error:', error)
+      alert('进入互动失败')
+      router.push('/game/characters')
+    }
+  }
 
   const fetchDiaries = async () => {
     if (!characterName) return

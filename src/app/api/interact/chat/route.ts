@@ -7,7 +7,6 @@ import { composeMessages, canUseFlirtMode, canUseDateMode, getPreset } from '@/l
 import { DEFAULT_PERSONA_PROMPT, UPDATE_VARIABLES_TOOL } from '@/prompts/preset-defaults'
 import { incrementApiCalls } from '@/lib/auth/repo'
 import { InteractionMode } from '@/types/preset'
-import { deductEnergy } from '@/lib/services/economy-service'
 import { getEnhancedMemoryContext, autoSummarizeInteraction } from '@/lib/services/memory-service'
 import { 
   isRagMemoryEnabled, 
@@ -157,12 +156,6 @@ export async function POST(request: NextRequest) {
 
     if (mode === 'flirt' && !canUseFlirtMode(characterData.favorability)) {
       return NextResponse.json({ error: '好感度不足，无法使用调情模式（需要≥50）' }, { status: 400 })
-    }
-
-    // 检查并扣除体力
-    const hasEnoughEnergy = await deductEnergy(session.userId, 1)
-    if (!hasEnoughEnergy) {
-      return NextResponse.json({ error: '体力不足！请等待体力恢复或推进到下一天' }, { status: 400 })
     }
 
     const config = JSON.parse(user.api_config as string)
