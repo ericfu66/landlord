@@ -2,114 +2,167 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { getUserById } from '@/lib/auth/repo'
 import { createChatCompletion } from '@/lib/ai/client'
-import { CHARACTER_TEMPLATE_PROMPT, GENERATE_CHARACTER_TOOL, SPECIAL_VARIABLE_PROMPT, GENERATE_SPECIAL_VAR_TOOL, SpecialVariableData } from '@/prompts/character-template'
+import { CHARACTER_TEMPLATE_PROMPT, SPECIAL_VARIABLE_PROMPT, SpecialVariableData } from '@/prompts/character-template'
 import { normalizeCharacter, CharacterTemplate } from '@/lib/services/recruit-service'
 import { AIConfig } from '@/lib/ai/client'
-import { updateTaskProgress } from '@/lib/services/task-service'
 
 /**
- * Extract valid JSON from a string that may contain extra content
- * Supports both objects {} and arrays []
+ * 从 AI 返回的文本中提取 JSON
+ * 支持处理：markdown 代码块、think 标签、HTML 错误页面等
  */
-function extractValidJson(str: string): string {
-  const trimmed = str.trim()
-  
-  // Try to find JSON object starting with {
-  let braceStart = trimmed.indexOf('{')
-  // Try to find JSON array starting with [
-  let bracketStart = trimmed.indexOf('[')
-  
-  // Determine which comes first (if both exist)
-  let start = -1
+function extractJsonFromText(text: string): string {
+  if (!text || typeof text !== 'string') {
+    throw new Error('返回内容为空或格式错误')
+  }
+
+  const trimmed = text.trim()
+
+  // 检测 HTML 错误页面
+  if (trimmed.startsWith('<') && (trimmed.includes('<html') || trimmed.includes('<!DOCTYPE'))) {
+    throw new Error('API 返回了 HTML 错误页面，请检查 API 配置')
+  }
+
+  // 移除 think 标签及其内容 (DeepSeek 等模型的思考内容)
+  let cleaned = trimmed
+  const thinkPatterns = [
+    /<think>[\s\S]*?<\/think>/gi,
+    /<thinking>[\s\S]*?<\/thinking>/gi,
+    /<reasoning>[\s\S]*?<\/reasoning>/gi,
+    /<thought>[\s\S]*?<\/thought>/gi,
+  ]
+  for (const pattern of thinkPatterns) {
+    cleaned = cleaned.replace(pattern, '')
+  }
+
+  // 尝试从 markdown 代码块中提取 JSON
+  const codeBlockPatterns = [
+    /```json\s*([\s\S]*?)```/i,
+    /```\s*([\s\S]*?)```/i,
+  ]
+  for (const pattern of codeBlockPatterns) {
+    const match = cleaned.match(pattern)
+    if (match && match[1]) {
+      const content = match[1].trim()
+      if (content.startsWith('{') || content.startsWith('[')) {
+        return content
+      }
+    }
+  }
+
+  // 查找 JSON 对象的开始位置
+  const braceIndex = cleaned.indexOf('{')
+  const bracketIndex = cleaned.indexOf('[')
+
+  let startIndex = -1
   let isArray = false
-  
-  if (braceStart !== -1 && bracketStart !== -1) {
-    // Both found, use the one that comes first
-    if (braceStart < bracketStart) {
-      start = braceStart
-      isArray = false
+
+  if (braceIndex !== -1 && bracketIndex !== -1) {
+    if (braceIndex < bracketIndex) {
+      startIndex = braceIndex
     } else {
-      start = bracketStart
+      startIndex = bracketIndex
       isArray = true
     }
-  } else if (braceStart !== -1) {
-    start = braceStart
-    isArray = false
-  } else if (bracketStart !== -1) {
-    start = bracketStart
+  } else if (braceIndex !== -1) {
+    startIndex = braceIndex
+  } else if (bracketIndex !== -1) {
+    startIndex = bracketIndex
     isArray = true
   }
-  
-  if (start === -1) {
-    // No JSON structure found, try to parse the whole string as JSON
-    try {
-      JSON.parse(trimmed)
-      return trimmed
-    } catch {
-      throw new Error('No JSON object or array found')
-    }
+
+  if (startIndex === -1) {
+    throw new Error('未在返回内容中找到 JSON 数据')
   }
-  
+
+  // 使用括号匹配找到 JSON 的结束位置
   let braceCount = 0
   let bracketCount = 0
   let inString = false
   let escapeNext = false
-  
-  for (let i = start; i < trimmed.length; i++) {
-    const char = trimmed[i]
-    
+
+  for (let i = startIndex; i < cleaned.length; i++) {
+    const char = cleaned[i]
+
     if (escapeNext) {
       escapeNext = false
       continue
     }
-    
+
     if (char === '\\') {
       escapeNext = true
       continue
     }
-    
+
     if (char === '"' && !escapeNext) {
       inString = !inString
       continue
     }
-    
+
     if (!inString) {
       if (char === '{') {
         braceCount++
       } else if (char === '}') {
         braceCount--
         if (!isArray && braceCount === 0) {
-          return trimmed.substring(start, i + 1)
+          return cleaned.substring(startIndex, i + 1)
         }
       } else if (char === '[') {
         bracketCount++
       } else if (char === ']') {
         bracketCount--
         if (isArray && bracketCount === 0) {
-          return trimmed.substring(start, i + 1)
+          return cleaned.substring(startIndex, i + 1)
         }
       }
     }
   }
-  
-  // If we couldn't find a complete structure, try parsing from start
-  // This handles cases where the JSON might be cut off or malformed
+
+  // 尝试返回从开始到末尾的内容
+  const candidate = cleaned.substring(startIndex)
   try {
-    // Try to find the longest valid JSON substring
-    for (let i = trimmed.length; i > start; i--) {
-      const substring = trimmed.substring(start, i)
+    JSON.parse(candidate)
+    return candidate
+  } catch {
+    for (let i = candidate.length; i > 0; i--) {
       try {
+        const substring = candidate.substring(0, i)
         JSON.parse(substring)
         return substring
       } catch {
-        // Continue trying shorter substrings
+        // 继续尝试更短的
       }
     }
-  } catch {
-    // Fall through to error
   }
-  
-  throw new Error('Incomplete JSON: no matching closing brace/bracket found')
+
+  throw new Error('无法提取有效的 JSON 数据')
+}
+
+/**
+ * 安全地解析 JSON
+ */
+function safeJsonParse(jsonStr: string): unknown {
+  try {
+    return JSON.parse(jsonStr)
+  } catch (parseError) {
+    let fixed = jsonStr
+
+    // 移除尾部逗号
+    fixed = fixed.replace(/,\s*([}\]])/g, '$1')
+
+    // 尝试补全缺失的闭合括号
+    while ((fixed.match(/\{/g) || []).length > (fixed.match(/\}/g) || []).length) {
+      fixed += '}'
+    }
+    while ((fixed.match(/\[/g) || []).length > (fixed.match(/\]/g) || []).length) {
+      fixed += ']'
+    }
+
+    try {
+      return JSON.parse(fixed)
+    } catch {
+      throw parseError
+    }
+  }
 }
 
 interface Candidate {
@@ -120,31 +173,46 @@ interface Candidate {
 
 interface GenerationResult {
   character: CharacterTemplate | null
+  specialVar?: SpecialVariableData | null
   rawResponse?: string
   error?: string
 }
 
 /**
- * 使用正则从文本中提取 JSON 对象
- * 支持 markdown 代码块和普通 JSON
+ * 合并的系统提示词：同时生成角色和特殊变量
  */
-function extractJsonWithRegex(text: string): string | null {
-  // 先尝试提取 markdown 代码块中的 JSON
-  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  if (codeBlockMatch) {
-    return codeBlockMatch[1].trim()
+const COMBINED_PROMPT = `${CHARACTER_TEMPLATE_PROMPT}
+
+${SPECIAL_VARIABLE_PROMPT}
+
+【重要】你必须在一次回复中同时完成以下两个任务：
+1. 生成完整的角色档案（包含角色档案的所有字段）
+2. 为这个角色生成特殊变量和分阶段人设
+
+请以 JSON 格式返回，结构如下：
+{
+  "角色档案": { ... },
+  "来源类型": "modern" | "crossover",
+  "穿越说明": "string (if crossover)",
+  "特殊变量": {
+    "变量名": "string",
+    "变量说明": "string",
+    "初始值": number,
+    "最小值": 0,
+    "最大值": 100,
+    "分阶段人设": [
+      { "阶段范围": "0-20", "阶段名称": "string", "人格表现": "string" },
+      { "阶段范围": "20-40", "阶段名称": "string", "人格表现": "string" },
+      { "阶段范围": "40-60", "阶段名称": "string", "人格表现": "string" },
+      { "阶段范围": "60-80", "阶段名称": "string", "人格表现": "string" },
+      { "阶段范围": "80-100", "阶段名称": "string", "人格表现": "string" }
+    ]
   }
-  
-  // 尝试提取最外层的大括号内容
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (jsonMatch) {
-    return jsonMatch[0].trim()
-  }
-  
-  return null
 }
 
-async function generateSingleCharacter(
+【重要】你必须直接返回 JSON 格式，不要添加任何解释说明或 markdown 格式标记。返回的 JSON 必须可以被直接解析。`
+
+async function generateCharacterWithSpecialVar(
   config: AIConfig,
   characterType: 'modern' | 'crossover',
   traits: string,
@@ -162,177 +230,63 @@ ${worldviewContent}
 请基于以上世界观背景生成角色，让角色融入这个世界观设定中。`
   }
 
-  const systemPrompt = CHARACTER_TEMPLATE_PROMPT
-  const userPrompt = `请生成一个${characterType === 'modern' ? '现代' : '跨时空'}角色。
+  const userPrompt = `请生成一个${characterType === 'modern' ? '现代' : '跨时空'}角色，并为其设计特殊变量和分阶段人设。
 
 期望特征：${traits}${seed > 0 ? `（尝试不同的具体表现方式，第${seed + 1}个角色）` : ''}
 ${sourceDescription ? `来源说明：${sourceDescription}` : ''}${worldviewPrompt}
 
-请直接返回 JSON 格式的角色档案，不要包含任何其他说明文字。`
+请直接返回 JSON 格式，包含"角色档案"、"来源类型"、"穿越说明"（如适用）和"特殊变量"字段。不要包含任何其他说明文字。`
 
-  // 尝试使用 tool calling（如果模型支持）
-  let response
-  try {
-    response = await createChatCompletion(config, {
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      tools: [GENERATE_CHARACTER_TOOL],
-      tool_choice: { type: 'function', function: { name: 'generate_character' } }
-    })
-  } catch {
-    // 如果 tool calling 失败，尝试普通对话模式
-    response = await createChatCompletion(config, {
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    })
-  }
+  const response = await createChatCompletion(config, {
+    messages: [
+      { role: 'system', content: COMBINED_PROMPT },
+      { role: 'user', content: userPrompt }
+    ],
+  })
 
-  const message = response.choices[0]?.message
-  
-  // 尝试从 tool_call 中提取
-  const toolCall = message?.tool_calls?.[0]
-  if (toolCall?.function?.arguments) {
-    try {
-      const jsonStr = extractValidJson(toolCall.function.arguments)
-      const characterData = JSON.parse(jsonStr)
-      const normalized = normalizeCharacter(characterData)
-      if (normalized) {
-        return { character: normalized }
-      }
-    } catch (e) {
-      console.log('Tool call parsing failed, trying content extraction')
+  const content = response.choices[0]?.message?.content
+  if (!content) {
+    return {
+      character: null,
+      error: 'AI未返回任何内容'
     }
   }
-  
-  // 尝试从 content 中提取 JSON（兼容性更好的方式）
-  const content = message?.content
-  if (content) {
-    try {
-      // 先尝试直接解析
-      let jsonStr = extractJsonWithRegex(content)
-      if (!jsonStr) {
-        // 如果正则提取失败，尝试整个内容
-        jsonStr = content.trim()
-      }
-      
-      const characterData = JSON.parse(jsonStr)
-      const normalized = normalizeCharacter(characterData)
-      
-      if (normalized) {
-        return { character: normalized }
-      } else {
-        return {
-          character: null,
-          rawResponse: content,
-          error: '角色数据格式不符合规范，缺少必要字段（角色档案）'
-        }
-      }
-    } catch (parseError) {
+
+  try {
+    const jsonStr = extractJsonFromText(content)
+    const data = safeJsonParse(jsonStr) as Record<string, unknown>
+
+    // 提取角色档案
+    const normalized = normalizeCharacter(data)
+    if (!normalized) {
       return {
         character: null,
         rawResponse: content,
-        error: `JSON解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}。请确保AI返回的是有效的JSON格式。`
+        error: '角色数据格式不符合规范，缺少必要字段（角色档案）'
       }
     }
-  }
-  
-  // 完全没有返回内容
-  return {
-    character: null,
-    rawResponse: 'AI未返回任何内容',
-    error: 'AI未返回有效的角色数据'
-  }
-}
 
-async function generateSpecialVariable(
-  config: AIConfig,
-  characterTemplate: CharacterTemplate
-): Promise<SpecialVariableData | null> {
-  const systemPrompt = SPECIAL_VARIABLE_PROMPT
-  const userPrompt = `请为以下角色生成特殊变量和分阶段人设：
-
-【角色基本信息】
-姓名：${characterTemplate.角色档案.基本信息.姓名}
-年龄：${characterTemplate.角色档案.基本信息.年龄}岁
-性别：${characterTemplate.角色档案.基本信息.性别}
-身份：${characterTemplate.角色档案.基本信息.身份}
-标签：${characterTemplate.角色档案.基本信息.标签.join('、')}
-
-【性格特点】
-核心特质：${characterTemplate.角色档案.性格特点.核心特质}
-表现形式：${characterTemplate.角色档案.性格特点.表现形式}
-对用户的表现：${characterTemplate.角色档案.性格特点.对用户的表现}
-
-【背景设定】
-家庭背景：${characterTemplate.角色档案.背景设定.家庭背景}
-成长经历：${characterTemplate.角色档案.背景设定.成长经历}
-
-请分析这个角色，为其设计一个最能代表其特殊状态的变量（如黑化值、干劲值、软化度等），
-并根据变量值的不同范围（0-20、20-40、40-60、60-80、80-100）生成对应的分阶段人设。
-
-请直接返回 JSON 格式，不要包含任何其他说明文字。`
-
-  // 尝试使用 tool calling
-  let response
-  try {
-    response = await createChatCompletion(config, {
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      tools: [GENERATE_SPECIAL_VAR_TOOL],
-      tool_choice: { type: 'function', function: { name: 'generate_special_variable' } }
-    })
-  } catch {
-    // 如果 tool calling 失败，尝试普通对话模式
-    response = await createChatCompletion(config, {
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    })
-  }
-
-  const message = response.choices[0]?.message
-  let jsonStr: string | null = null
-  
-  // 尝试从 tool_call 中提取
-  const toolCall = message?.tool_calls?.[0]
-  if (toolCall?.function?.arguments) {
-    try {
-      jsonStr = extractValidJson(toolCall.function.arguments)
-    } catch {
-      console.log('Special var tool call parsing failed, trying content extraction')
-    }
-  }
-  
-  // 尝试从 content 中提取
-  if (!jsonStr && message?.content) {
-    jsonStr = extractJsonWithRegex(message.content)
-  }
-  
-  if (!jsonStr) {
-    return null
-  }
-
-  try {
-    const specialVarData = JSON.parse(jsonStr) as SpecialVariableData
-
-    if (!specialVarData.变量名 || typeof specialVarData.初始值 !== 'number' || !Array.isArray(specialVarData.分阶段人设)) {
-      return null
+    // 提取特殊变量
+    let specialVar: SpecialVariableData | null = null
+    const specialVarData = data['特殊变量'] as Record<string, unknown> | undefined
+    if (specialVarData && 
+        specialVarData['变量名'] && 
+        typeof specialVarData['初始值'] === 'number' &&
+        Array.isArray(specialVarData['分阶段人设']) &&
+        specialVarData['分阶段人设'].length === 5) {
+      specialVar = specialVarData as unknown as SpecialVariableData
     }
 
-    if (specialVarData.分阶段人设.length !== 5) {
-      return null
+    return { 
+      character: normalized,
+      specialVar
     }
-
-    return specialVarData
-  } catch {
-    return null
+  } catch (parseError) {
+    return {
+      character: null,
+      rawResponse: content,
+      error: `JSON解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`
+    }
   }
 }
 
@@ -362,8 +316,8 @@ export async function POST(request: NextRequest) {
 
     const config = JSON.parse(user.api_config as string)
 
-    // 生成单个角色
-    const result = await generateSingleCharacter(
+    // 生成角色和特殊变量（一次 API 调用）
+    const result = await generateCharacterWithSpecialVar(
       config,
       characterType,
       traits,
@@ -375,26 +329,15 @@ export async function POST(request: NextRequest) {
     if (!result.character) {
       return NextResponse.json({ 
         error: '生成角色失败', 
-        details: result.error || 'AI未能返回有效的角色数据，请检查AI配置或稍后重试',
+        details: result.error || 'AI未能返回有效的角色数据',
         rawResponse: result.rawResponse
       }, { status: 500 })
     }
 
-    const character = result.character
-
-    // 生成特殊变量（分阶段人设）
-    let specialVar: SpecialVariableData | null = null
-    try {
-      specialVar = await generateSpecialVariable(config, character)
-    } catch (err) {
-      console.error('Special variable generation error:', err)
-      // 特殊变量生成失败不影响主角色创建，继续执行
-    }
-
     const candidate: Candidate = {
       id: `candidate_${seed + 1}`,
-      character,
-      specialVar: specialVar || undefined
+      character: result.character,
+      specialVar: result.specialVar || undefined
     }
 
     return NextResponse.json({ candidate })

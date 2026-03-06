@@ -231,6 +231,7 @@ export async function resetGameData(userId: number): Promise<boolean> {
       weather = '晴',
       current_time = '08:00',
       current_job = NULL,
+      recruit_count = 0,
       updated_at = CURRENT_TIMESTAMP
       WHERE id = ${safeUserId}`)
     
