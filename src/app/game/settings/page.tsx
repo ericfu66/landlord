@@ -155,6 +155,7 @@ export default function SettingsPage() {
     } finally {
       setRagLoading(false)
     }
+  }
 
   const testConnection = async () => {
     if (!baseUrl || !apiKey) {
@@ -619,5 +620,4 @@ export default function SettingsPage() {
       </div>
     </div>
   )
-}
 }
