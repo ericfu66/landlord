@@ -79,6 +79,8 @@ async function autoMigrate(database: any): Promise<void> {
     `ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1`,
     `ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN talent_points INTEGER DEFAULT 0`,
+    // RAG 记忆配置字段
+    `ALTER TABLE users ADD COLUMN rag_config TEXT`,
   ]
 
   for (const migration of migrations) {

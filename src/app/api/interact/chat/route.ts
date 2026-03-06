@@ -9,6 +9,14 @@ import { incrementApiCalls } from '@/lib/auth/repo'
 import { InteractionMode } from '@/types/preset'
 import { deductEnergy } from '@/lib/services/economy-service'
 import { getEnhancedMemoryContext, autoSummarizeInteraction } from '@/lib/services/memory-service'
+import { 
+  isRagMemoryEnabled, 
+  getRagEmbeddingConfig, 
+  searchRagMemories, 
+  addRagMemory,
+  buildRagContext,
+  DEFAULT_RAG_CONFIG
+} from '@/lib/services/rag-memory-service'
 import { getWorldViewById } from '@/lib/services/worldview-service'
 import { resolveWorldViewPlaceholders } from '@/types/worldview'
 import { generateSticker } from '@/lib/ai/image-client'
@@ -225,7 +233,7 @@ ${userAvatar.background ? `- 背景：${userAvatar.background}` : ''}
     }
 
     // 构建增强的记忆内容
-    const memoryContent = `好感度: ${characterData.favorability}, 顺从度: ${characterData.obedience}, 心情: ${characterData.mood}${specialVarInfo}
+    let memoryContent = `好感度: ${characterData.favorability}, 顺从度: ${characterData.obedience}, 心情: ${characterData.mood}${specialVarInfo}
 
 【关于自己的记忆】
 ${enhancedMemory.selfSummary}
@@ -238,6 +246,30 @@ ${enhancedMemory.recentDiaries}
 
 【与房东的关系】
 ${enhancedMemory.relationshipWithUser}${currentStageInfo}`
+
+    // RAG 记忆检索 - 仅在用户启用时
+    let ragContext = ''
+    const ragEnabled = await isRagMemoryEnabled(session.userId)
+    if (ragEnabled) {
+      const ragConfig = await getRagEmbeddingConfig(session.userId)
+      if (ragConfig) {
+        try {
+          const ragResults = await searchRagMemories(
+            characterName,
+            session.userId,
+            userInput,
+            ragConfig,
+            DEFAULT_RAG_CONFIG
+          )
+          ragContext = buildRagContext(ragResults, { includeSimilarity: false })
+          // 将 RAG 上下文添加到记忆内容
+          memoryContent += ragContext
+        } catch (error) {
+          console.error('[Chat] RAG memory retrieval failed:', error)
+          // RAG 失败不影响主流程
+        }
+      }
+    }
 
     const personaContent = `${DEFAULT_PERSONA_PROMPT}
 
@@ -332,6 +364,24 @@ ${JSON.stringify(characterData.template, null, 2)}
       reply,
       config
     )
+
+    // 保存到 RAG 记忆（异步，不阻塞响应）
+    if (ragEnabled) {
+      const ragConfig = await getRagEmbeddingConfig(session.userId)
+      if (ragConfig) {
+        // 构建记忆内容
+        const memoryContent = `用户说：${userInput}\n你回复：${reply}`
+        addRagMemory(
+          characterName,
+          session.userId,
+          memoryContent,
+          'interaction',
+          ragConfig
+        ).catch(error => {
+          console.error('[Chat] Failed to save RAG memory:', error)
+        })
+      }
+    }
 
     // Parse choices from reply
     let choices: string[] = []

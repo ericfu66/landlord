@@ -251,6 +251,28 @@ CREATE TABLE IF NOT EXISTS talents (
   UNIQUE(user_id, talent_id)
 );
 
+-- RAG 记忆表 - 存储向量化的记忆条目
+CREATE TABLE IF NOT EXISTS rag_memories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  character_name TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  content TEXT NOT NULL,  -- 完整记忆内容
+  embedding TEXT,  -- JSON 格式的向量
+  memory_type TEXT DEFAULT 'interaction',  -- 'interaction' | 'summary' | 'diary' | 'important'
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (character_name) REFERENCES characters(name) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 用户设置表 - 存储用户偏好设置
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id INTEGER PRIMARY KEY,
+  rag_enabled BOOLEAN DEFAULT FALSE,
+  rag_config TEXT,  -- JSON 格式的 embedding 配置
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_characters_user_id ON characters(user_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_user_id ON rooms(user_id);
@@ -265,3 +287,6 @@ CREATE INDEX IF NOT EXISTS idx_memories_character ON character_memories(characte
 CREATE INDEX IF NOT EXISTS idx_daily_news_user_date ON daily_news(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_talents_user_id ON talents(user_id);
+CREATE INDEX IF NOT EXISTS idx_rag_memories_character ON rag_memories(character_name);
+CREATE INDEX IF NOT EXISTS idx_rag_memories_user ON rag_memories(user_id);
+CREATE INDEX IF NOT EXISTS idx_rag_memories_created ON rag_memories(created_at);

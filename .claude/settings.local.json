@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm run:*)",
       "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:docs.siliconflow.cn)"
     ]
   }
 }

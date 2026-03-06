@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, Save, Settings, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { LogOut, Save, Settings, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Brain, TestTube } from 'lucide-react'
 
 interface AIModel {
   id: string
@@ -26,8 +26,17 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
+  // RAG Memory settings
+  const [ragEnabled, setRagEnabled] = useState(false)
+  const [ragBaseUrl, setRagBaseUrl] = useState('')
+  const [ragApiKey, setRagApiKey] = useState('')
+  const [ragModel, setRagModel] = useState('BAAI/bge-m3')
+  const [ragLoading, setRagLoading] = useState(false)
+  const [ragTesting, setRagTesting] = useState(false)
+
   useEffect(() => {
     loadConfig()
+    loadRagConfig()
   }, [])
 
   // 自动隐藏消息
@@ -57,6 +66,95 @@ export default function SettingsPage() {
       console.error('Load config error:', error)
     }
   }
+
+  const loadRagConfig = async () => {
+    try {
+      const res = await fetch('/api/rag')
+      if (res.ok) {
+        const data = await res.json()
+        setRagEnabled(data.enabled)
+        if (data.config) {
+          setRagBaseUrl(data.config.baseUrl || '')
+          setRagModel(data.config.model || 'BAAI/bge-m3')
+          // API Key is masked, don't set it
+        }
+      }
+    } catch (error) {
+      console.error('Load RAG config error:', error)
+    }
+  }
+
+  const testRagConnection = async () => {
+    if (!ragBaseUrl || !ragApiKey) {
+      setMessage({ type: 'error', text: '请填写 Embedding Base URL 和 API Key' })
+      return
+    }
+
+    setRagTesting(true)
+    setMessage(null)
+
+    try {
+      const res = await fetch('/api/rag/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          baseUrl: ragBaseUrl, 
+          apiKey: ragApiKey,
+          model: ragModel 
+        })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setMessage({ type: 'success', text: `连接成功！向量维度: ${data.dimension || '未知'}` })
+      } else {
+        setMessage({ type: 'error', text: data.error || '连接失败' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '连接测试失败' })
+    } finally {
+      setRagTesting(false)
+    }
+  }
+
+  const saveRagConfig = async () => {
+    if (ragEnabled && (!ragBaseUrl || !ragApiKey)) {
+      setMessage({ type: 'error', text: '启用 RAG 记忆需要提供 Embedding 配置' })
+      return
+    }
+
+    setRagLoading(true)
+    setMessage(null)
+
+    try {
+      const res = await fetch('/api/rag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: ragEnabled,
+          ...(ragBaseUrl && ragApiKey && {
+            config: {
+              baseUrl: ragBaseUrl,
+              apiKey: ragApiKey,
+              model: ragModel
+            }
+          })
+        })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setMessage({ type: 'success', text: 'RAG 记忆设置已保存' })
+      } else {
+        setMessage({ type: 'error', text: data.error || '保存失败' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '保存 RAG 设置失败' })
+    } finally {
+      setRagLoading(false)
+    }
 
   const testConnection = async () => {
     if (!baseUrl || !apiKey) {
@@ -413,6 +511,96 @@ export default function SettingsPage() {
           </button>
         </div>
 
+        {/* RAG 记忆设置区域 */}
+        <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10 space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 pb-3 sm:pb-4 border-b border-white/10">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+              <Brain className="text-blue-400" size={18} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-base sm:text-lg font-semibold">RAG 记忆增强</h2>
+              <p className="text-xs text-gray-400">使用向量检索增强角色记忆</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ragEnabled}
+                onChange={(e) => setRagEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {ragEnabled && (
+            <div className="space-y-4 p-3 bg-white/5 rounded-lg border border-white/10">
+              <div className="text-xs sm:text-sm text-gray-300 space-y-2">
+                <p>启用后，每次对话将：</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-400">
+                  <li>根据当前消息检索最相关的 3 条历史记忆</li>
+                  <li>自动包含最新的 3 条记忆</li>
+                  <li>将相关记忆注入到角色上下文中</li>
+                </ul>
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">Embedding Base URL</label>
+                <input
+                  type="text"
+                  value={ragBaseUrl}
+                  onChange={(e) => setRagBaseUrl(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="https://api.siliconflow.cn/v1"
+                />
+                <p className="text-xs text-gray-500 mt-1">推荐使用 SiliconFlow 的 Embedding API</p>
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">Embedding API Key</label>
+                <input
+                  type="password"
+                  value={ragApiKey}
+                  onChange={(e) => setRagApiKey(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="sk-..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">Embedding 模型</label>
+                <select
+                  value={ragModel}
+                  onChange={(e) => setRagModel(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="BAAI/bge-m3">BAAI/bge-m3 (推荐)</option>
+                  <option value="BAAI/bge-large-zh-v1.5">BAAI/bge-large-zh-v1.5</option>
+                  <option value="netease-youdao/bce-embedding-base_v1">netease-youdao/bce-embedding-base_v1</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={testRagConnection}
+                  disabled={ragTesting}
+                  className="flex-1 px-3 sm:px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50 text-xs sm:text-sm touch-target flex items-center justify-center gap-1.5"
+                >
+                  <TestTube size={14} />
+                  {ragTesting ? '测试中...' : '测试 Embedding 连接'}
+                </button>
+              </div>
+
+              <button
+                onClick={saveRagConfig}
+                disabled={ragLoading}
+                className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-sm touch-target"
+              >
+                保存 RAG 记忆设置
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* 游戏设置区域 */}
         <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10 space-y-4 sm:space-y-6">
           <div className="flex items-center gap-2 pb-3 sm:pb-4 border-b border-white/10">
@@ -431,4 +619,5 @@ export default function SettingsPage() {
       </div>
     </div>
   )
+}
 }

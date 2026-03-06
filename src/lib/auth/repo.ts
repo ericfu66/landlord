@@ -7,6 +7,7 @@ export interface User {
   role: string
   is_banned: boolean
   api_config: string | null
+  rag_config?: string | null
 }
 
 
@@ -14,7 +15,7 @@ export interface User {
 export async function getUserById(userId: number): Promise<User | null> {
   const db = await getDb()
   const result = db.exec(
-    `SELECT id, username, role, is_banned, api_config FROM users WHERE id = ${userId}`
+    `SELECT id, username, role, is_banned, api_config, rag_config FROM users WHERE id = ${userId}`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -27,7 +28,8 @@ export async function getUserById(userId: number): Promise<User | null> {
     username: row[1] as string,
     role: row[2] as string,
     is_banned: row[3] === 1,
-    api_config: row[4] as string | null
+    api_config: row[4] as string | null,
+    rag_config: row[5] as string | null
   }
 }
 
@@ -45,7 +47,7 @@ export async function createUser(username: string, password: string): Promise<Us
   
   saveDb()
   
-  const result = db.exec(`SELECT id, username, role, is_banned, api_config FROM users WHERE username = '${safeSqlString(username)}'`)
+  const result = db.exec(`SELECT id, username, role, is_banned, api_config, rag_config FROM users WHERE username = '${safeSqlString(username)}'`)
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return null
@@ -57,7 +59,8 @@ export async function createUser(username: string, password: string): Promise<Us
     username: row[1] as string,
     role: row[2] as string,
     is_banned: row[3] === 1,
-    api_config: row[4] as string | null
+    api_config: row[4] as string | null,
+    rag_config: row[5] as string | null
   }
 }
 
@@ -65,7 +68,7 @@ export async function authenticateUser(username: string, password: string): Prom
   const db = await getDb()
   
   const result = db.exec(
-    `SELECT id, username, password_hash, role, is_banned, api_config FROM users WHERE username = '${safeSqlString(username)}'`
+    `SELECT id, username, password_hash, role, is_banned, api_config, rag_config FROM users WHERE username = '${safeSqlString(username)}'`
   )
   
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -79,7 +82,8 @@ export async function authenticateUser(username: string, password: string): Prom
     passwordHash: row[2] as string | null,
     role: row[3] as string,
     is_banned: row[4] === 1,
-    api_config: row[5] as string | null
+    api_config: row[5] as string | null,
+    rag_config: row[6] as string | null
   }
   
   if (user.is_banned) {
@@ -101,7 +105,8 @@ export async function authenticateUser(username: string, password: string): Prom
     username: user.username,
     role: user.role,
     is_banned: user.is_banned,
-    api_config: user.api_config
+    api_config: user.api_config,
+    rag_config: user.rag_config
   }
 }
 
