@@ -59,41 +59,57 @@ export interface ChatCompletionResponse {
 
 export async function createChatCompletion(
   config: AIConfig,
-  request: ChatCompletionRequest
+  request: ChatCompletionRequest,
+  timeoutMs: number = 120000  // 默认2分钟超时
 ): Promise<ChatCompletionResponse> {
-  const response = await fetch(`${config.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`
-    },
-    body: JSON.stringify({
-      model: request.model || config.model,
-      messages: request.messages,
-      temperature: request.temperature ?? config.temperature ?? 0.7,
-      max_tokens: request.max_tokens ?? config.max_tokens,
-      ...(config.top_p !== undefined && { top_p: config.top_p }),
-      ...(config.top_k !== undefined && { top_k: config.top_k }),
-      tools: request.tools,
-      tool_choice: request.tool_choice
+  // 创建 AbortController 用于超时控制
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  
+  try {
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: request.model || config.model,
+        messages: request.messages,
+        temperature: request.temperature ?? config.temperature ?? 0.7,
+        max_tokens: request.max_tokens ?? config.max_tokens,
+        ...(config.top_p !== undefined && { top_p: config.top_p }),
+        ...(config.top_k !== undefined && { top_k: config.top_k }),
+        tools: request.tools,
+        tool_choice: request.tool_choice
+      }),
+      signal: controller.signal
     })
-  })
+    
+    clearTimeout(timeoutId)
 
-  if (!response.ok) {
-    let errorMessage: string
-    const errorText = await response.text()
-    try {
-      // 尝试解析JSON错误
-      const errorJson = JSON.parse(errorText)
-      errorMessage = errorJson.error?.message || errorJson.message || errorJson.error || errorText
-    } catch {
-      // 如果不是JSON，使用原文本
-      errorMessage = errorText
+    if (!response.ok) {
+      let errorMessage: string
+      const errorText = await response.text()
+      try {
+        // 尝试解析JSON错误
+        const errorJson = JSON.parse(errorText)
+        errorMessage = errorJson.error?.message || errorJson.message || errorJson.error || errorText
+      } catch {
+        // 如果不是JSON，使用原文本
+        errorMessage = errorText
+      }
+      throw new Error(`AI API错误 (${response.status}): ${errorMessage || '未知错误'}`)
     }
-    throw new Error(`AI API错误 (${response.status}): ${errorMessage || '未知错误'}`)
-  }
 
-  return response.json()
+    return response.json()
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`AI 请求超时 (${timeoutMs/1000}秒)，请检查网络连接或稍后重试`)
+    }
+    throw error
+  }
 }
 
 export async function testConnection(config: AIConfig): Promise<{ success: boolean; error?: string }> {

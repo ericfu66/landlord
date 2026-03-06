@@ -118,6 +118,32 @@ interface Candidate {
   specialVar?: SpecialVariableData
 }
 
+interface GenerationResult {
+  character: CharacterTemplate | null
+  rawResponse?: string
+  error?: string
+}
+
+/**
+ * 使用正则从文本中提取 JSON 对象
+ * 支持 markdown 代码块和普通 JSON
+ */
+function extractJsonWithRegex(text: string): string | null {
+  // 先尝试提取 markdown 代码块中的 JSON
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim()
+  }
+  
+  // 尝试提取最外层的大括号内容
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (jsonMatch) {
+    return jsonMatch[0].trim()
+  }
+  
+  return null
+}
+
 async function generateSingleCharacter(
   config: AIConfig,
   characterType: 'modern' | 'crossover',
@@ -125,7 +151,7 @@ async function generateSingleCharacter(
   sourceDescription: string | undefined,
   worldviewContent: string | undefined,
   seed: number
-): Promise<CharacterTemplate | null> {
+): Promise<GenerationResult> {
   let worldviewPrompt = ''
   if (worldviewContent) {
     worldviewPrompt = `
@@ -140,27 +166,86 @@ ${worldviewContent}
   const userPrompt = `请生成一个${characterType === 'modern' ? '现代' : '跨时空'}角色。
 
 期望特征：${traits}${seed > 0 ? `（尝试不同的具体表现方式，第${seed + 1}个角色）` : ''}
-${sourceDescription ? `来源说明：${sourceDescription}` : ''}${worldviewPrompt}`
+${sourceDescription ? `来源说明：${sourceDescription}` : ''}${worldviewPrompt}
 
-  const response = await createChatCompletion(config, {
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    tools: [GENERATE_CHARACTER_TOOL],
-    tool_choice: { type: 'function', function: { name: 'generate_character' } }
-  })
+请直接返回 JSON 格式的角色档案，不要包含任何其他说明文字。`
 
-  const toolCall = response.choices[0]?.message?.tool_calls?.[0]
-  if (!toolCall) {
-    return null
+  // 尝试使用 tool calling（如果模型支持）
+  let response
+  try {
+    response = await createChatCompletion(config, {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      tools: [GENERATE_CHARACTER_TOOL],
+      tool_choice: { type: 'function', function: { name: 'generate_character' } }
+    })
+  } catch {
+    // 如果 tool calling 失败，尝试普通对话模式
+    response = await createChatCompletion(config, {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    })
   }
 
-  const jsonStr = extractValidJson(toolCall.function.arguments)
-  const characterData = JSON.parse(jsonStr)
-  const normalized = normalizeCharacter(characterData)
-
-  return normalized
+  const message = response.choices[0]?.message
+  
+  // 尝试从 tool_call 中提取
+  const toolCall = message?.tool_calls?.[0]
+  if (toolCall?.function?.arguments) {
+    try {
+      const jsonStr = extractValidJson(toolCall.function.arguments)
+      const characterData = JSON.parse(jsonStr)
+      const normalized = normalizeCharacter(characterData)
+      if (normalized) {
+        return { character: normalized }
+      }
+    } catch (e) {
+      console.log('Tool call parsing failed, trying content extraction')
+    }
+  }
+  
+  // 尝试从 content 中提取 JSON（兼容性更好的方式）
+  const content = message?.content
+  if (content) {
+    try {
+      // 先尝试直接解析
+      let jsonStr = extractJsonWithRegex(content)
+      if (!jsonStr) {
+        // 如果正则提取失败，尝试整个内容
+        jsonStr = content.trim()
+      }
+      
+      const characterData = JSON.parse(jsonStr)
+      const normalized = normalizeCharacter(characterData)
+      
+      if (normalized) {
+        return { character: normalized }
+      } else {
+        return {
+          character: null,
+          rawResponse: content,
+          error: '角色数据格式不符合规范，缺少必要字段（角色档案）'
+        }
+      }
+    } catch (parseError) {
+      return {
+        character: null,
+        rawResponse: content,
+        error: `JSON解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}。请确保AI返回的是有效的JSON格式。`
+      }
+    }
+  }
+  
+  // 完全没有返回内容
+  return {
+    character: null,
+    rawResponse: 'AI未返回任何内容',
+    error: 'AI未返回有效的角色数据'
+  }
 }
 
 async function generateSpecialVariable(
@@ -187,34 +272,68 @@ async function generateSpecialVariable(
 成长经历：${characterTemplate.角色档案.背景设定.成长经历}
 
 请分析这个角色，为其设计一个最能代表其特殊状态的变量（如黑化值、干劲值、软化度等），
-并根据变量值的不同范围（0-20、20-40、40-60、60-80、80-100）生成对应的分阶段人设。`
+并根据变量值的不同范围（0-20、20-40、40-60、60-80、80-100）生成对应的分阶段人设。
 
-  const response = await createChatCompletion(config, {
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    tools: [GENERATE_SPECIAL_VAR_TOOL],
-    tool_choice: { type: 'function', function: { name: 'generate_special_variable' } }
-  })
+请直接返回 JSON 格式，不要包含任何其他说明文字。`
 
-  const toolCall = response.choices[0]?.message?.tool_calls?.[0]
-  if (!toolCall) {
+  // 尝试使用 tool calling
+  let response
+  try {
+    response = await createChatCompletion(config, {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      tools: [GENERATE_SPECIAL_VAR_TOOL],
+      tool_choice: { type: 'function', function: { name: 'generate_special_variable' } }
+    })
+  } catch {
+    // 如果 tool calling 失败，尝试普通对话模式
+    response = await createChatCompletion(config, {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    })
+  }
+
+  const message = response.choices[0]?.message
+  let jsonStr: string | null = null
+  
+  // 尝试从 tool_call 中提取
+  const toolCall = message?.tool_calls?.[0]
+  if (toolCall?.function?.arguments) {
+    try {
+      jsonStr = extractValidJson(toolCall.function.arguments)
+    } catch {
+      console.log('Special var tool call parsing failed, trying content extraction')
+    }
+  }
+  
+  // 尝试从 content 中提取
+  if (!jsonStr && message?.content) {
+    jsonStr = extractJsonWithRegex(message.content)
+  }
+  
+  if (!jsonStr) {
     return null
   }
 
-  const jsonStr = extractValidJson(toolCall.function.arguments)
-  const specialVarData = JSON.parse(jsonStr) as SpecialVariableData
+  try {
+    const specialVarData = JSON.parse(jsonStr) as SpecialVariableData
 
-  if (!specialVarData.变量名 || typeof specialVarData.初始值 !== 'number' || !Array.isArray(specialVarData.分阶段人设)) {
+    if (!specialVarData.变量名 || typeof specialVarData.初始值 !== 'number' || !Array.isArray(specialVarData.分阶段人设)) {
+      return null
+    }
+
+    if (specialVarData.分阶段人设.length !== 5) {
+      return null
+    }
+
+    return specialVarData
+  } catch {
     return null
   }
-
-  if (specialVarData.分阶段人设.length !== 5) {
-    return null
-  }
-
-  return specialVarData
 }
 
 // 计算招募费用：第一次500，每次+100
@@ -244,7 +363,7 @@ export async function POST(request: NextRequest) {
     const config = JSON.parse(user.api_config as string)
 
     // 生成单个角色
-    const character = await generateSingleCharacter(
+    const result = await generateSingleCharacter(
       config,
       characterType,
       traits,
@@ -253,12 +372,24 @@ export async function POST(request: NextRequest) {
       seed
     )
 
-    if (!character) {
-      return NextResponse.json({ error: '生成角色失败，请重试' }, { status: 500 })
+    if (!result.character) {
+      return NextResponse.json({ 
+        error: '生成角色失败', 
+        details: result.error || 'AI未能返回有效的角色数据，请检查AI配置或稍后重试',
+        rawResponse: result.rawResponse
+      }, { status: 500 })
     }
 
+    const character = result.character
+
     // 生成特殊变量（分阶段人设）
-    const specialVar = await generateSpecialVariable(config, character)
+    let specialVar: SpecialVariableData | null = null
+    try {
+      specialVar = await generateSpecialVariable(config, character)
+    } catch (err) {
+      console.error('Special variable generation error:', err)
+      // 特殊变量生成失败不影响主角色创建，继续执行
+    }
 
     const candidate: Candidate = {
       id: `candidate_${seed + 1}`,
@@ -269,8 +400,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ candidate })
   } catch (error) {
     console.error('Generate batch characters error:', error)
+    const errorMessage = error instanceof Error ? error.message : '生成角色失败'
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : '批量生成角色失败' },
+      { 
+        error: '生成角色失败',
+        details: errorMessage 
+      },
       { status: 500 }
     )
   }

@@ -7,6 +7,7 @@ import { LogOut, Save, Settings, AlertCircle, CheckCircle, ChevronDown, ChevronU
 interface AIModel {
   id: string
   name: string
+  owned_by?: string
 }
 
 export default function SettingsPage() {
@@ -15,6 +16,8 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
   const [models, setModels] = useState<AIModel[]>([])
+  const [showModelDropdown, setShowModelDropdown] = useState(false)
+  const [modelSearch, setModelSearch] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [temperature, setTemperature] = useState('')
   const [topP, setTopP] = useState('')
@@ -397,25 +400,66 @@ export default function SettingsPage() {
           </div>
 
           {/* 模型选择 + 手动输入 */}
-          <div>
+          <div className="relative">
             <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">模型</label>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-              placeholder="手动输入模型名称，如 gpt-4o"
-              list="model-list"
-            />
-            {models.length > 0 && (
-              <datalist id="model-list">
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </datalist>
+            <div className="relative">
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => {
+                  setModel(e.target.value)
+                  setModelSearch(e.target.value)
+                }}
+                onFocus={() => models.length > 0 && setShowModelDropdown(true)}
+                onBlur={() => setTimeout(() => setShowModelDropdown(false), 200)}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm pr-10"
+                placeholder={models.length > 0 ? "输入筛选模型或直接输入模型名" : "手动输入模型名称，如 gpt-4o"}
+              />
+              {models.length > 0 && (
+                <button
+                  onClick={() => setShowModelDropdown(!showModelDropdown)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white transition-colors"
+                  type="button"
+                >
+                  {showModelDropdown ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+              )}
+            </div>
+            
+            {/* 模型下拉列表 */}
+            {showModelDropdown && models.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto bg-[#1a1a2e] border border-white/20 rounded-lg shadow-xl">
+                {models
+                  .filter(m => 
+                    modelSearch === '' || 
+                    m.id.toLowerCase().includes(modelSearch.toLowerCase()) ||
+                    (m.owned_by && m.owned_by.toLowerCase().includes(modelSearch.toLowerCase()))
+                  )
+                  .map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        setModel(m.id)
+                        setModelSearch('')
+                        setShowModelDropdown(false)
+                      }}
+                      className={`w-full px-3 sm:px-4 py-2.5 text-left text-sm hover:bg-white/10 transition-colors flex items-center justify-between ${
+                        model === m.id ? 'bg-purple-600/30 text-purple-300' : 'text-gray-300'
+                      }`}
+                    >
+                      <span className="truncate">{m.id}</span>
+                      {m.owned_by && (
+                        <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{m.owned_by}</span>
+                      )}
+                    </button>
+                  ))}
+              </div>
             )}
+            
             {models.length > 0 && (
-              <p className="text-xs text-gray-500 mt-1">已获取 {models.length} 个模型，可从建议中选择或直接输入</p>
+              <p className="text-xs text-gray-500 mt-1">
+                已获取 {models.length} 个模型，点击右侧箭头选择或手动输入
+              </p>
             )}
           </div>
 

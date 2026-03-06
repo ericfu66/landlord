@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useGameState } from '../GameStateContext'
-import { Sparkles, Users, AlertCircle, Zap, Layers, ChevronLeft, ChevronRight, UserCheck } from 'lucide-react'
+import { Sparkles, Users, AlertCircle, Zap, Layers } from 'lucide-react'
 
 interface WorldView {
   id: number
@@ -85,6 +85,7 @@ export default function RecruitPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [aiRawResponse, setAiRawResponse] = useState<string | null>(null)
   const [availableRooms, setAvailableRooms] = useState(0)
   const [loadingRooms, setLoadingRooms] = useState(true)
   const [generatingSpecialVars, setGeneratingSpecialVars] = useState(false)
@@ -156,6 +157,7 @@ export default function RecruitPage() {
 
     setLoading(true)
     setError('')
+    setAiRawResponse(null)
     setCandidates([])
     setSelectedCandidateId(null)
     setGeneratingSpecialVars(true)
@@ -182,11 +184,14 @@ export default function RecruitPage() {
       await refreshGameState()
 
       const selectedWorldview = worldviews.find(w => w.id === selectedWorldviewId)
-      const candidateCount = 2
 
-      // 并行发送多个请求，每个生成一个角色（含分阶段人设）
-      const promises = Array.from({ length: candidateCount }, (_, i) =>
-        fetch('/api/recruit/generate-batch', {
+      // 生成单个角色（含分阶段人设）- 设置3分钟超时
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 180000)
+      
+      let res: Response
+      try {
+        res = await fetch('/api/recruit/generate-batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -195,26 +200,52 @@ export default function RecruitPage() {
             sourceDescription: characterType === 'crossover' ? sourceDescription : undefined,
             worldviewId: selectedWorldviewId,
             worldviewContent: selectedWorldview?.content,
-            seed: i
-          })
-        }).then(async (res) => {
-          const data = await res.json()
-          if (!res.ok) return null
-          return data.candidate as Candidate | null
-        }).catch(() => null)
-      )
-
-      const results = await Promise.all(promises)
-      const validCandidates = results.filter((c): c is Candidate => c !== null)
-
-      if (validCandidates.length > 0) {
-        setCandidates(validCandidates)
-        setSelectedCandidateId(validCandidates[0].id)
-      } else {
-        setError('未能生成候选角色，请重试')
+            seed: 0
+          }),
+          signal: controller.signal
+        })
+        clearTimeout(timeoutId)
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          setError('请求超时 (3分钟)，请检查网络连接或稍后重试')
+        } else {
+          setError(fetchError instanceof Error ? fetchError.message : '网络请求失败')
+        }
+        setLoading(false)
+        setGeneratingSpecialVars(false)
+        return
       }
-    } catch {
-      setError('网络错误，请重试')
+
+      const data = await res.json()
+      
+      if (!res.ok) {
+        // 显示详细的错误信息
+        if (data.error) {
+          setError(data.error)
+        } else if (data.details) {
+          setError(`生成失败: ${data.details}`)
+        } else {
+          setError('生成角色失败，请重试')
+        }
+        // 保存AI的原始返回结果
+        if (data.rawResponse) {
+          setAiRawResponse(data.rawResponse)
+        }
+        setLoading(false)
+        setGeneratingSpecialVars(false)
+        return
+      }
+
+      if (data.candidate) {
+        setCandidates([data.candidate])
+        setSelectedCandidateId(data.candidate.id)
+      } else {
+        setError('未能获取生成的角色数据，请重试')
+      }
+    } catch (err) {
+      console.error('Generate candidate error:', err)
+      setError(err instanceof Error ? err.message : '网络错误，请重试')
     } finally {
       setLoading(false)
       setGeneratingSpecialVars(false)
@@ -259,17 +290,6 @@ export default function RecruitPage() {
   }
 
   const selectedCandidate = candidates.find(c => c.id === selectedCandidateId)
-  const currentIndex = candidates.findIndex(c => c.id === selectedCandidateId)
-
-  const nextCandidate = () => {
-    const nextIndex = (currentIndex + 1) % candidates.length
-    setSelectedCandidateId(candidates[nextIndex].id)
-  }
-
-  const prevCandidate = () => {
-    const prevIndex = (currentIndex - 1 + candidates.length) % candidates.length
-    setSelectedCandidateId(candidates[prevIndex].id)
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-0">
@@ -400,7 +420,27 @@ export default function RecruitPage() {
             </div>
 
             {error && (
-              <p className="text-red-400 text-xs sm:text-sm">{error}</p>
+              <div className="space-y-3">
+                <div className="glass-card p-3 sm:p-4 border border-red-500/30 bg-red-500/5">
+                  <p className="text-red-400 text-xs sm:text-sm flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </p>
+                </div>
+                
+                {aiRawResponse && (
+                  <details className="glass-card border border-yellow-500/30 bg-yellow-500/5">
+                    <summary className="p-3 sm:p-4 cursor-pointer text-yellow-400 text-xs sm:text-sm font-medium flex items-center gap-2 select-none">
+                      <span>查看AI原始返回（调试用）</span>
+                    </summary>
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+                      <pre className="text-xs text-gray-400 bg-black/30 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+                        {aiRawResponse}
+                      </pre>
+                    </div>
+                  </details>
+                )}
+              </div>
             )}
 
             <button
@@ -410,7 +450,7 @@ export default function RecruitPage() {
             >
               {loading ? '生成中...' : availableRooms === 0 ? '请先去建造房间' : (
                 <span className="flex items-center justify-center gap-2">
-                  <span>生成候选租客</span>
+                  <span>生成租客</span>
                   <span className="text-yellow-300">💰 {loadingCost ? '...' : recruitCost}</span>
                   {recruitCount > 0 && <span className="text-xs opacity-70">(第{recruitCount + 1}次)</span>}
                 </span>
@@ -419,54 +459,9 @@ export default function RecruitPage() {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {/* Candidate Navigation */}
-            <div className="flex items-center justify-between">
-              <button
-                onClick={prevCandidate}
-                className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-                disabled={candidates.length <= 1}
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              
-              <div className="text-center">
-                <span className="text-sm text-gray-400">候选租客 </span>
-                <span className="text-lg font-bold text-purple-400">{currentIndex + 1}</span>
-                <span className="text-sm text-gray-400"> / {candidates.length}</span>
-              </div>
-              
-              <button
-                onClick={nextCandidate}
-                className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-                disabled={candidates.length <= 1}
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Candidate Preview Cards */}
-            <div className="flex justify-center gap-2">
-              {candidates.map((candidate, index) => (
-                <button
-                  key={candidate.id}
-                  onClick={() => setSelectedCandidateId(candidate.id)}
-                  className={`relative p-2 rounded-lg transition-all ${
-                    selectedCandidateId === candidate.id
-                      ? 'bg-purple-600 ring-2 ring-purple-400'
-                      : 'bg-white/10 hover:bg-white/20'
-                  }`}
-                >
-                  <div className="text-2xl">
-                    {candidate.character.角色档案.基本信息.性别 === '女' ? '👩' : '👨'}
-                  </div>
-                  <div className="text-xs mt-1">{candidate.character.角色档案.基本信息.姓名}</div>
-                  {selectedCandidateId === candidate.id && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                      <UserCheck className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
+            {/* Title */}
+            <div className="text-center">
+              <span className="text-sm text-gray-400">新租客预览</span>
             </div>
 
             {selectedCandidate && (
@@ -577,7 +572,27 @@ export default function RecruitPage() {
             )}
 
             {error && (
-              <p className="text-red-400 text-xs sm:text-sm">{error}</p>
+              <div className="space-y-3">
+                <div className="glass-card p-3 sm:p-4 border border-red-500/30 bg-red-500/5">
+                  <p className="text-red-400 text-xs sm:text-sm flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </p>
+                </div>
+                
+                {aiRawResponse && (
+                  <details className="glass-card border border-yellow-500/30 bg-yellow-500/5">
+                    <summary className="p-3 sm:p-4 cursor-pointer text-yellow-400 text-xs sm:text-sm font-medium flex items-center gap-2 select-none">
+                      <span>查看AI原始返回（调试用）</span>
+                    </summary>
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+                      <pre className="text-xs text-gray-400 bg-black/30 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+                        {aiRawResponse}
+                      </pre>
+                    </div>
+                  </details>
+                )}
+              </div>
             )}
 
             <div className="space-y-3 sm:space-y-4">

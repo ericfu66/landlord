@@ -12,6 +12,7 @@ const navItems = [
   { href: '/game/recruit', label: '招募', icon: '✨', shortLabel: '招募' },
   { href: '/game/building', label: '基建', icon: '🏢', shortLabel: '基建' },
   { href: '/game/work', label: '打工', icon: '💼', shortLabel: '打工' },
+  { href: '/game/worldviews', label: '世界观', icon: '🌍', shortLabel: '世界观' },
   { href: '/game/multiplayer', label: '联机', icon: '🌐', shortLabel: '联机' },
   { href: '/game/group-chat', label: '群聊', icon: '💬', shortLabel: '群聊' },
   { href: '/game/workshop', label: '工坊', icon: '🏪', shortLabel: '工坊' },
