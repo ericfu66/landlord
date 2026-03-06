@@ -1,9 +1,10 @@
 import NewsDetailClient from './NewsDetailClient'
 
-export default function NewsDetailPage({
+export default async function NewsDetailPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  return <NewsDetailClient newsId={params.id} />
+  const { id } = await params
+  return <NewsDetailClient newsId={id} />
 }

@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import Link from 'next/link'
 import { Clock, RefreshCw } from 'lucide-react'
 import { useGameState } from './GameStateContext'
-import DailyNewsPopup from '@/components/game/DailyNewsPopup'
+
+// 动态导入弹窗组件，减少首屏加载
+const DailyNewsPopup = lazy(() => import('@/components/game/DailyNewsPopup'))
 
 interface Stats {
   currency: number
@@ -151,8 +153,10 @@ export default function GamePage() {
       {/* Noise texture overlay */}
       <div className="noise-overlay" />
 
-      {/* Daily News Popup */}
-      <DailyNewsPopup />
+      {/* Daily News Popup - 懒加载 */}
+      <Suspense fallback={null}>
+        <DailyNewsPopup />
+      </Suspense>
 
       <div className="max-w-5xl mx-auto space-y-4 sm:space-y-8 px-2 sm:px-0">
         {/* Hero Section */}

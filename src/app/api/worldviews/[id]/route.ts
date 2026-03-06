@@ -4,7 +4,7 @@ import { getWorldViewById, updateWorldView, deleteWorldView } from '@/lib/servic
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession()
@@ -12,7 +12,8 @@ export async function GET(
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
     
-    const worldview = await getWorldViewById(parseInt(params.id), session.userId)
+    const { id } = await params
+    const worldview = await getWorldViewById(parseInt(id), session.userId)
     if (!worldview) {
       return NextResponse.json({ error: '世界观不存在' }, { status: 404 })
     }
@@ -26,7 +27,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession()
@@ -34,8 +35,9 @@ export async function PUT(
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
     
+    const { id } = await params
     const body = await request.json()
-    const worldview = await updateWorldView(parseInt(params.id), session.userId, body)
+    const worldview = await updateWorldView(parseInt(id), session.userId, body)
     
     if (!worldview) {
       return NextResponse.json({ error: '更新失败' }, { status: 500 })
@@ -50,7 +52,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession()
@@ -58,7 +60,8 @@ export async function DELETE(
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
     
-    const success = await deleteWorldView(parseInt(params.id), session.userId)
+    const { id } = await params
+    const success = await deleteWorldView(parseInt(id), session.userId)
     
     if (!success) {
       return NextResponse.json({ error: '删除失败，可能正被角色使用' }, { status: 400 })

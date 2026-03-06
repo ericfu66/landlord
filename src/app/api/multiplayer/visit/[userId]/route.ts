@@ -5,7 +5,7 @@ import { getUserById } from '@/lib/auth/repo'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const session = await getSession()
@@ -13,7 +13,8 @@ export async function GET(
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
     
-    const hostUserId = parseInt(params.userId)
+    const { userId } = await params
+    const hostUserId = parseInt(userId)
     if (isNaN(hostUserId)) {
       return NextResponse.json({ error: '无效的用户ID' }, { status: 400 })
     }

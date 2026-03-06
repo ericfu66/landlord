@@ -5,7 +5,7 @@ import { getDb, safeInt } from '@/lib/db'
 // 获取单条新闻详情
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession()
@@ -14,7 +14,8 @@ export async function GET(
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const newsId = safeInt(params.id)
+    const { id } = await params
+    const newsId = safeInt(id)
     if (newsId <= 0) {
       return NextResponse.json({ error: '无效的新闻ID' }, { status: 400 })
     }
