@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import GalgameDialog from '@/components/game/GalgameDialog'
 import WeChatUI from '@/components/game/WeChatUI'
@@ -9,13 +9,217 @@ import { getInteractionModeInfo } from '@/lib/services/preset-client'
 import { InteractionMode } from '@/types/preset'
 import { DiaryEntry } from '@/types/diary'
 import { useGameState } from '../GameStateContext'
-import { ArrowLeft, BookOpen } from 'lucide-react'
+import { useChatSession } from '@/hooks/useChatSession'
+import { ChatSession } from '@/lib/services/chat-session-service'
+import { ArrowLeft, BookOpen, MessageSquare, Plus, History, Trash2, Edit2, X, Check } from 'lucide-react'
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+}
+
+// 会话管理组件
+function SessionManager({
+  sessions,
+  currentSession,
+  onNewSession,
+  onLoadSession,
+  onDeleteSession,
+  onRenameSession,
+  isOpen,
+  onClose,
+  characterName
+}: {
+  sessions: ChatSession[]
+  currentSession: ChatSession | null
+  onNewSession: () => void
+  onLoadSession: (sessionId: string) => void
+  onDeleteSession: (sessionId: string) => void
+  onRenameSession: (sessionId: string, title: string) => void
+  isOpen: boolean
+  onClose: () => void
+  characterName: string
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+
+  if (!isOpen) return null
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const getModeLabel = (mode: string) => {
+    const labels: Record<string, string> = {
+      daily: '日常',
+      date: '约会',
+      flirt: '亲密',
+      free: '自由'
+    }
+    return labels[mode] || mode
+  }
+
+  const handleStartEdit = (session: ChatSession) => {
+    setEditingId(session.id)
+    setEditTitle(session.title || '')
+  }
+
+  const handleSaveEdit = () => {
+    if (editingId && editTitle.trim()) {
+      onRenameSession(editingId, editTitle.trim())
+      setEditingId(null)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditTitle('')
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="glass-card w-full max-w-md max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div>
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <History className="w-5 h-5" />
+              会话管理
+            </h3>
+            <p className="text-xs text-gray-400 mt-1">与 {characterName} 的对话记录</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* New Session Button */}
+        <div className="p-4 border-b border-white/10">
+          <button
+            onClick={() => {
+              onNewSession()
+              onClose()
+            }}
+            className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-5 h-5" />
+            开始新会话
+          </button>
+        </div>
+
+        {/* Session List */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {sessions.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>暂无会话记录</p>
+              <p className="text-xs mt-1">点击上方按钮开始新对话</p>
+            </div>
+          ) : (
+            sessions.map((session) => (
+              <div
+                key={session.id}
+                className={`p-3 rounded-lg border transition-all cursor-pointer group ${
+                  currentSession?.id === session.id
+                    ? 'bg-purple-600/30 border-purple-500/50'
+                    : 'bg-white/5 border-transparent hover:bg-white/10'
+                }`}
+                onClick={() => {
+                  onLoadSession(session.id)
+                  onClose()
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    {editingId === session.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveEdit()
+                            if (e.key === 'Escape') handleCancelEdit()
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 px-2 py-1 bg-white/10 border border-white/20 rounded text-sm"
+                          autoFocus
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSaveEdit()
+                          }}
+                          className="p-1 hover:bg-green-500/20 rounded"
+                        >
+                          <Check className="w-4 h-4 text-green-400" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCancelEdit()
+                          }}
+                          className="p-1 hover:bg-red-500/20 rounded"
+                        >
+                          <X className="w-4 h-4 text-red-400" />
+                        </button>
+                      </div>
+                    ) : (
+                      <h4 className="font-medium text-sm truncate">
+                        {session.title || `会话 ${formatDate(session.createdAt)}`}
+                      </h4>
+                    )}
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                      <span className="px-1.5 py-0.5 bg-white/10 rounded">
+                        {getModeLabel(session.mode)}
+                      </span>
+                      <span>{session.messages.length} 条消息</span>
+                      <span>· {formatDate(session.updatedAt)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleStartEdit(session)
+                      }}
+                      className="p-1.5 hover:bg-white/10 rounded transition-colors"
+                      title="重命名"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm('确定要删除这个会话吗？')) {
+                          onDeleteSession(session.id)
+                        }
+                      }}
+                      className="p-1.5 hover:bg-red-500/20 rounded transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 interface Choice {
@@ -61,6 +265,8 @@ function InteractContent() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<InteractionMode>('daily')
   const [updating, setUpdating] = useState(false)
+  const [showSessionManager, setShowSessionManager] = useState(false)
+  const [sessionRestored, setSessionRestored] = useState(false)
   
   // Sticker and portrait states
   const [stickerUrl, setStickerUrl] = useState<string | undefined>()
@@ -77,6 +283,22 @@ function InteractContent() {
   // Mobile view toggle
   const [showSidebar, setShowSidebar] = useState(false)
 
+  // 会话管理 - 必须在 useEffect 之前声明
+  const {
+    currentSession,
+    sessions,
+    startNewSession,
+    loadSession,
+    restoreActiveSession,
+    addMessage,
+    removeSession,
+    renameSession,
+    clearCurrentSession
+  } = useChatSession({
+    characterName: characterName || '',
+    mode
+  })
+
   useEffect(() => {
     if (characterName) {
       fetchCharacterData()
@@ -84,6 +306,26 @@ function InteractContent() {
       enterInteraction()
     }
   }, [characterName])
+
+  // 尝试恢复上次的会话
+  useEffect(() => {
+    if (characterName && !sessionRestored && sessions.length > 0) {
+      const active = restoreActiveSession()
+      if (active) {
+        // 恢复消息到状态
+        const restoredMessages = active.messages.map(msg => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp)
+        }))
+        setMessages(restoredMessages)
+        // 恢复模式
+        setMode(active.mode)
+      }
+      setSessionRestored(true)
+    }
+  }, [characterName, sessions.length, sessionRestored, restoreActiveSession])
 
   // 进入互动时扣除体力（使用 sessionStorage 防止刷新重复扣费）
   const enterInteraction = async () => {
@@ -231,7 +473,10 @@ function InteractContent() {
       content,
       timestamp: new Date()
     }
-    setMessages((prev) => [...prev, userMsg])
+    setMessages((prev) => {
+      const newMessages = [...prev, userMsg]
+      return newMessages
+    })
 
     try {
       const res = await fetch('/api/interact/chat', {
@@ -253,7 +498,21 @@ function InteractContent() {
           content: data.reply,
           timestamp: new Date()
         }
-        setMessages((prev) => [...prev, assistantMsg])
+        setMessages((prev) => {
+          const newMessages = [...prev, assistantMsg]
+          // 保存到会话
+          if (currentSession) {
+            addMessage('assistant', data.reply)
+          } else {
+            // 如果没有会话，创建一个并保存两条消息
+            startNewSession()
+            setTimeout(() => {
+              addMessage('user', content)
+              addMessage('assistant', data.reply)
+            }, 0)
+          }
+          return newMessages
+        })
 
         if (data.choices && Array.isArray(data.choices)) {
           setChoices(data.choices.map((c: string, i: number) => ({
@@ -304,12 +563,41 @@ function InteractContent() {
   }
 
   const handleModeChange = (newMode: InteractionMode) => {
+    // 如果有当前会话且消息不为空，询问用户
+    if (messages.length > 0) {
+      const continueCurrent = confirm('切换模式将开始新会话，当前对话已自动保存。是否继续？')
+      if (!continueCurrent) return
+    }
     setMode(newMode)
     setMessages([])
     setChoices([])
     setStickerUrl(undefined)
     setTempPortraitUrl(undefined)
+    clearCurrentSession()
   }
+
+  // 加载会话
+  const handleLoadSession = useCallback((sessionId: string) => {
+    const session = loadSession(sessionId)
+    if (session) {
+      setMode(session.mode)
+      const restoredMessages = session.messages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.timestamp)
+      }))
+      setMessages(restoredMessages)
+      setChoices([])
+    }
+  }, [loadSession])
+
+  // 开始新会话
+  const handleStartNewSession = useCallback(() => {
+    startNewSession()
+    setMessages([])
+    setChoices([])
+  }, [startNewSession])
 
   // Handle real-time portrait generation
   const handleGeneratePortrait = async (emotion: string) => {
@@ -374,22 +662,37 @@ function InteractContent() {
 
   if (isGalgameMode) {
     return (
-      <GalgameDialog
-        characterName={character.name}
-        characterImage={tempPortraitUrl || character.portraitUrl}
-        messages={messages}
-        choices={choices}
-        onSend={handleSend}
-        onChoice={handleChoice}
-        onModeChange={handleModeChange}
-        loading={loading}
-        favorability={character.favorability}
-        mode={mode}
-        stickerUrl={stickerUrl}
-        stickerEmotion={stickerEmotion}
-        onGeneratePortrait={handleGeneratePortrait}
-        portraitLoading={portraitLoading}
-      />
+      <>
+        <GalgameDialog
+          characterName={character.name}
+          characterImage={tempPortraitUrl || character.portraitUrl}
+          messages={messages}
+          choices={choices}
+          onSend={handleSend}
+          onChoice={handleChoice}
+          onModeChange={handleModeChange}
+          loading={loading}
+          favorability={character.favorability}
+          mode={mode}
+          stickerUrl={stickerUrl}
+          stickerEmotion={stickerEmotion}
+          onGeneratePortrait={handleGeneratePortrait}
+          portraitLoading={portraitLoading}
+          currentSession={currentSession}
+          onShowSessionManager={() => setShowSessionManager(true)}
+        />
+        <SessionManager
+          sessions={sessions}
+          currentSession={currentSession}
+          onNewSession={handleStartNewSession}
+          onLoadSession={handleLoadSession}
+          onDeleteSession={removeSession}
+          onRenameSession={renameSession}
+          isOpen={showSessionManager}
+          onClose={() => setShowSessionManager(false)}
+          characterName={character.name}
+        />
+      </>
     )
   }
 
@@ -475,6 +778,27 @@ function InteractContent() {
               <p>身份：{character.template.角色档案.基本信息.身份}</p>
               <p>租金：💰 {character.rent || 200}/天</p>
             </div>
+          </div>
+
+          {/* 会话管理 */}
+          <div className="glass-card p-3 sm:p-4 mt-3 sm:mt-4">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <h3 className="font-bold text-sm sm:text-base">💬 会话</h3>
+              <button
+                onClick={() => setShowSessionManager(true)}
+                className="text-xs px-2 py-1 bg-purple-600/50 hover:bg-purple-600 rounded transition-colors"
+              >
+                管理
+              </button>
+            </div>
+            {currentSession && (
+              <div className="p-2 bg-white/5 rounded text-xs">
+                <p className="text-gray-300 truncate">{currentSession.title}</p>
+                <p className="text-gray-500 mt-0.5">
+                  {currentSession.messages.length} 条消息 · {getModeLabel(currentSession.mode)}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* 日记功能 */}
@@ -569,8 +893,32 @@ function InteractContent() {
           </div>
         </div>
       )}
+
+      {/* 会话管理器 */}
+      <SessionManager
+        sessions={sessions}
+        currentSession={currentSession}
+        onNewSession={handleStartNewSession}
+        onLoadSession={handleLoadSession}
+        onDeleteSession={removeSession}
+        onRenameSession={renameSession}
+        isOpen={showSessionManager}
+        onClose={() => setShowSessionManager(false)}
+        characterName={character.name}
+      />
     </div>
   )
+}
+
+// 辅助函数：获取模式标签
+function getModeLabel(mode: string): string {
+  const labels: Record<string, string> = {
+    daily: '日常',
+    date: '约会',
+    flirt: '亲密',
+    free: '自由'
+  }
+  return labels[mode] || mode
 }
 
 export default function InteractPage() {

@@ -4,7 +4,8 @@
       "Bash(npm run:*)",
       "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
       "Bash(npx tsc:*)",
-      "WebFetch(domain:docs.siliconflow.cn)"
+      "WebFetch(domain:docs.siliconflow.cn)",
+      "Bash(node:*)"
     ]
   }
 }

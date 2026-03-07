@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { InteractionMode } from '@/types/preset'
+import { ChatSession } from '@/lib/services/chat-session-service'
+import { History, MessageSquare, X } from 'lucide-react'
 
 interface Choice {
   id: string
@@ -29,6 +31,8 @@ interface GalgameDialogProps {
   stickerEmotion?: string
   onGeneratePortrait?: (emotion: string) => void
   portraitLoading?: boolean
+  currentSession?: ChatSession | null
+  onShowSessionManager?: () => void
 }
 
 // Mode info helper
@@ -92,7 +96,9 @@ export default function GalgameDialog({
   stickerUrl,
   stickerEmotion,
   onGeneratePortrait,
-  portraitLoading
+  portraitLoading,
+  currentSession,
+  onShowSessionManager
 }: GalgameDialogProps) {
   const [input, setInput] = useState('')
   const [displayedText, setDisplayedText] = useState('')
@@ -101,8 +107,10 @@ export default function GalgameDialog({
   const [currentPortrait, setCurrentPortrait] = useState(characterImage)
   const [showEmotionPanel, setShowEmotionPanel] = useState(false)
   const [portraitHidden, setPortraitHidden] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const typingRef = useRef<NodeJS.Timeout | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const historyEndRef = useRef<HTMLDivElement>(null)
 
   const mode = externalMode || internalMode
   const setMode = (m: InteractionMode) => {
@@ -117,6 +125,13 @@ export default function GalgameDialog({
   useEffect(() => {
     setCurrentPortrait(characterImage)
   }, [characterImage])
+
+  // Scroll history to bottom when opened or messages change
+  useEffect(() => {
+    if (showHistory) {
+      historyEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [showHistory, messages])
 
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null
   const isCharacterSpeaking = lastMessage?.role === 'assistant'
@@ -367,14 +382,42 @@ export default function GalgameDialog({
               <span className="text-pink-300 font-bold">{characterName}</span>
             </div>
 
-            {/* Favorability indicator */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">好感度</span>
-              <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, favorability))}%` }}
-                />
+            <div className="flex items-center gap-3">
+              {/* Session info */}
+              {currentSession && (
+                <button
+                  onClick={() => onShowSessionManager?.()}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded-full text-xs text-gray-300 transition-colors"
+                  title="管理会话"
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  <span className="hidden sm:inline">{currentSession.messages.length} 条</span>
+                </button>
+              )}
+
+              {/* History button */}
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-colors ${
+                  showHistory
+                    ? 'bg-pink-500 text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-gray-300'
+                }`}
+                title="查看历史"
+              >
+                <History className="w-3 h-3" />
+                <span className="hidden sm:inline">历史</span>
+              </button>
+
+              {/* Favorability indicator */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">好感度</span>
+                <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.max(0, favorability))}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -404,6 +447,51 @@ export default function GalgameDialog({
               </div>
             )}
           </div>
+
+          {/* History Panel */}
+          <AnimatePresence>
+            {showHistory && messages.length > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="border-t border-pink-500/20 overflow-hidden"
+              >
+                <div className="max-h-48 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-pink-500/30 scrollbar-track-transparent">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-pink-300">对话历史</h4>
+                    <button
+                      onClick={() => setShowHistory(false)}
+                      className="p-1 hover:bg-white/10 rounded"
+                    >
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </div>
+                  {messages.map((msg, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                          msg.role === 'user'
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-br-md'
+                            : 'bg-white/10 text-gray-200 rounded-bl-md'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-400 mb-1">
+                          {msg.role === 'user' ? '你' : characterName}
+                        </p>
+                        <p>{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={historyEndRef} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Input area - for user input mode */}
           {choices.length === 0 && (
