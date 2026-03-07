@@ -765,7 +765,7 @@ export default function BuildPanel() {
   }
 
   return (
-    <div className="relative min-h-[calc(100vh-180px)]">
+    <div className="relative min-h-[calc(100vh-180px)] pl-14 sm:pl-14">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
@@ -783,14 +783,14 @@ export default function BuildPanel() {
       </div>
 
       {/* Building Container */}
-      <div
-        className="transition-transform duration-300 ease-out overflow-auto pb-32 sm:pb-40"
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: 'center top'
-        }}
-      >
-        <div className="space-y-2 max-w-4xl mx-auto">
+      <div className="pb-32 sm:pb-40 overflow-visible">
+        <div 
+          className="space-y-2 max-w-4xl mx-auto transition-transform duration-300 ease-out"
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: 'center top'
+          }}
+        >
           {floorList.map((floorNum, index) => {
             const floorRooms = getFloorRooms(floorNum)
             const colorSet = FLOOR_COLORS[index % FLOOR_COLORS.length]
@@ -809,8 +809,8 @@ export default function BuildPanel() {
                 `}
               >
                 {/* Floor Label */}
-                <div className="absolute -left-14 top-1/2 -translate-y-1/2 w-12 text-right">
-                  <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                <div className="absolute -left-12 sm:-left-14 top-1/2 -translate-y-1/2 w-10 sm:w-12 text-right">
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-500 whitespace-nowrap">
                     {getFloorLabel(floorNum)}
                   </span>
                 </div>
