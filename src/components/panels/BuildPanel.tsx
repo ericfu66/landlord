@@ -855,7 +855,7 @@ export default function BuildPanel() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-[100]"
+            className="fixed bottom-20 sm:bottom-24 inset-x-0 mx-auto w-fit z-[100]"
           >
             <div className="flex items-center gap-1 bg-slate-800/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-1.5 shadow-2xl">
           {/* Zoom Controls */}
