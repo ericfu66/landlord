@@ -784,7 +784,7 @@ export default function BuildPanel() {
 
       {/* Building Container */}
       <div
-        className="transition-transform duration-300 ease-out overflow-auto pb-24"
+        className="transition-transform duration-300 ease-out overflow-auto pb-32 sm:pb-40"
         style={{
           transform: `scale(${scale})`,
           transformOrigin: 'center top'
@@ -847,14 +847,17 @@ export default function BuildPanel() {
         </div>
       </div>
 
-      {/* Bottom Toolbar */}
-      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50">
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="flex items-center gap-1 bg-slate-800/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-1.5 shadow-2xl"
-        >
+      {/* Bottom Toolbar - 在其他功能展开时隐藏 */}
+      <AnimatePresence>
+        {!selectedRoom && !showBuildModal && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-28 sm:bottom-32 left-1/2 -translate-x-1/2 z-50 pb-safe"
+          >
+            <div className="flex items-center gap-1 bg-slate-800/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-1.5 shadow-2xl">
           {/* Zoom Controls */}
           <div className="flex items-center gap-0.5 px-2 border-r border-slate-700/50">
             <button
@@ -905,8 +908,10 @@ export default function BuildPanel() {
             <Layers className="w-4 h-4" />
             <span className="text-sm">添加楼层</span>
           </button>
-        </motion.div>
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modals */}
       {selectedRoom && (
