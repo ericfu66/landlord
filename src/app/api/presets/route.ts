@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth/session'
 import { getPreset, savePreset } from '@/lib/services/preset-service'
-import { InteractionMode, PresetEntry } from '@/types/preset'
+import { InteractionMode, PresetEntry, PersonaPosition } from '@/types/preset'
 
 const VALID_MODES: InteractionMode[] = ['daily', 'date', 'flirt', 'free']
 
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
 
     const preset = await getPreset(session.userId, presetType)
     return NextResponse.json({
-      entries: preset?.presetData?.entries || []
+      entries: preset?.presetData?.entries || [],
+      personaPosition: preset?.presetData?.personaPosition || 'after_worldview'
     })
   } catch (error) {
     console.error('Get preset error:', error)
@@ -39,9 +40,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { presetType, entries } = body as {
+    const { presetType, entries, personaPosition } = body as {
       presetType: unknown
       entries: PresetEntry[]
+      personaPosition?: PersonaPosition
     }
 
     if (!isInteractionMode(presetType) || !Array.isArray(entries)) {
@@ -55,12 +57,18 @@ export async function POST(request: NextRequest) {
         role: entry.role,
         content: (entry.content || '').trim(),
         order: index,
-        isFixed: false
+        isFixed: false,
+        type: entry.type || 'custom'
       }))
       .filter((entry) => entry.content.length > 0)
 
-    await savePreset(session.userId, presetType, normalizedEntries)
-    return NextResponse.json({ success: true, entries: normalizedEntries })
+    const position: PersonaPosition = personaPosition || 'after_worldview'
+    const saved = await savePreset(session.userId, presetType, normalizedEntries, position)
+    return NextResponse.json({ 
+      success: true, 
+      entries: normalizedEntries,
+      personaPosition: saved.presetData.personaPosition 
+    })
   } catch (error) {
     console.error('Save preset error:', error)
     return NextResponse.json({ error: '保存预设失败' }, { status: 500 })

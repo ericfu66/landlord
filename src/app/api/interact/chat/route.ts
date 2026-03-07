@@ -322,7 +322,7 @@ ${JSON.stringify(characterData.template, null, 2)}
 - 不要每条消息都发送表情包
 - 表情包应该符合当前对话情境`
 
-    // 在composeMessages时传入worldviewContent
+    // 在composeMessages时传入worldviewContent和personaPosition
     const messages = composeMessages(
       {
         fixed: {
@@ -331,7 +331,8 @@ ${JSON.stringify(characterData.template, null, 2)}
           history: history || '暂无聊天记录'
         },
         custom: userPreset?.presetData?.entries || [],
-        userInput
+        userInput,
+        personaPosition: userPreset?.presetData?.personaPosition || 'after_worldview'
       },
       worldviewContent
     )

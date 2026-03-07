@@ -29,40 +29,71 @@ export const DEFAULT_EMBEDDING_MODEL = 'BAAI/bge-m3'
 /**
  * Create embeddings for text(s)
  * Supports batch processing for multiple texts
+ * Includes retry logic for 503 errors
  */
 export async function createEmbedding(
   config: EmbeddingConfig,
-  input: string | string[]
+  input: string | string[],
+  retries: number = 2
 ): Promise<number[][]> {
-  const response = await fetch(`${config.baseUrl}/embeddings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`
-    },
-    body: JSON.stringify({
-      model: config.model || DEFAULT_EMBEDDING_MODEL,
-      input,
-      encoding_format: 'float'
-    })
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    let errorMessage: string
+  let lastError: Error | null = null
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const errorJson = JSON.parse(errorText)
-      errorMessage = errorJson.error?.message || errorJson.message || errorText
-    } catch {
-      errorMessage = errorText
+      const response = await fetch(`${config.baseUrl}/embeddings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: config.model || DEFAULT_EMBEDDING_MODEL,
+          input,
+          encoding_format: 'float'
+        })
+      })
+
+      if (response.ok) {
+        const data: EmbeddingResponse = await response.json()
+        return data.data.map(item => item.embedding)
+      }
+
+      // Handle specific status codes
+      const errorText = await response.text()
+      let errorMessage: string
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorMessage = errorJson.error?.message || errorJson.message || errorText
+      } catch {
+        errorMessage = errorText
+      }
+
+      // 503 Service Unavailable - retry with exponential backoff
+      if (response.status === 503 && attempt < retries) {
+        const delay = Math.pow(2, attempt) * 500 // 500ms, 1000ms, 2000ms
+        console.warn(`[Embedding] 503 error, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+
+      // Other errors - throw immediately
+      throw new Error(`Embedding API error (${response.status}): ${errorMessage || '未知错误'}`)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      
+      // Network errors - retry
+      if (attempt < retries && (lastError.message.includes('fetch') || lastError.message.includes('network'))) {
+        const delay = Math.pow(2, attempt) * 500
+        console.warn(`[Embedding] Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      
+      throw lastError
     }
-    throw new Error(`Embedding API error (${response.status}): ${errorMessage || '未知错误'}`)
   }
 
-  const data: EmbeddingResponse = await response.json()
-  
-  // Return array of embeddings
-  return data.data.map(item => item.embedding)
+  throw lastError || new Error('Embedding API failed after retries')
 }
 
 /**

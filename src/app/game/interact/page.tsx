@@ -11,7 +11,7 @@ import { DiaryEntry } from '@/types/diary'
 import { useGameState } from '../GameStateContext'
 import { useChatSession } from '@/hooks/useChatSession'
 import { ChatSession } from '@/lib/services/chat-session-service'
-import { ArrowLeft, BookOpen, MessageSquare, Plus, History, Trash2, Edit2, X, Check } from 'lucide-react'
+import { ArrowLeft, BookOpen, MessageSquare, Plus, History, Trash2, Edit2, X, Check, Bug } from 'lucide-react'
 
 interface Message {
   id: string
@@ -263,6 +263,7 @@ function InteractContent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [choices, setChoices] = useState<Choice[]>([])
   const [loading, setLoading] = useState(false)
+  const [ragLoading, setRagLoading] = useState(false) // 向量化查询中状态
   const [mode, setMode] = useState<InteractionMode>('daily')
   const [updating, setUpdating] = useState(false)
   const [showSessionManager, setShowSessionManager] = useState(false)
@@ -282,6 +283,15 @@ function InteractContent() {
   const [diaryMessage, setDiaryMessage] = useState<string>('')
   // Mobile view toggle
   const [showSidebar, setShowSidebar] = useState(false)
+  
+  // Debug prompt viewer states
+  const [showDebugPanel, setShowDebugPanel] = useState(false)
+  const [debugPromptData, setDebugPromptData] = useState<{
+    messages: Array<{role: string, content: string}>
+    stats: {system: number, user: number, assistant: number, total: number}
+    personaPosition: string
+  } | null>(null)
+  const [debugLoading, setDebugLoading] = useState(false)
 
   // 会话管理 - 必须在 useEffect 之前声明
   const {
@@ -467,6 +477,8 @@ function InteractContent() {
     setChoices([])
 
     setLoading(true)
+    setRagLoading(true) // 开始RAG查询动画
+    
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -479,6 +491,11 @@ function InteractContent() {
     })
 
     try {
+      // 模拟RAG查询时间（实际查询在服务端进行）
+      // 这里我们给用户一个视觉反馈，表示正在进行记忆检索
+      const ragStartTime = Date.now()
+      const minRagDisplayTime = 800 // 最少显示800ms动画
+      
       const res = await fetch('/api/interact/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -488,6 +505,13 @@ function InteractContent() {
           userInput: content
         })
       })
+      
+      // 确保动画至少显示最小时间
+      const elapsed = Date.now() - ragStartTime
+      if (elapsed < minRagDisplayTime) {
+        await new Promise(resolve => setTimeout(resolve, minRagDisplayTime - elapsed))
+      }
+      setRagLoading(false)
 
       const data = await res.json()
 
@@ -551,6 +575,7 @@ function InteractContent() {
       alert('发送失败')
     } finally {
       setLoading(false)
+      setRagLoading(false)
     }
   }
 
@@ -560,6 +585,40 @@ function InteractContent() {
 
     setChoices([])
     await handleSend(choice.text)
+  }
+
+  // 获取 debug 提示词
+  const fetchDebugPrompt = async () => {
+    if (!character) return
+    setDebugLoading(true)
+    
+    // 使用最后一条用户消息或默认文本
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop()
+    const testInput = lastUserMessage?.content || '你好'
+    
+    try {
+      const res = await fetch('/api/interact/debug-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterName: character.name,
+          mode,
+          userInput: testInput
+        })
+      })
+      
+      const data = await res.json()
+      if (res.ok) {
+        setDebugPromptData(data)
+      } else {
+        alert(data.error || '获取提示词失败')
+      }
+    } catch (error) {
+      console.error('Fetch debug prompt error:', error)
+      alert('获取提示词失败')
+    } finally {
+      setDebugLoading(false)
+    }
   }
 
   const handleModeChange = (newMode: InteractionMode) => {
@@ -680,6 +739,7 @@ function InteractContent() {
           portraitLoading={portraitLoading}
           currentSession={currentSession}
           onShowSessionManager={() => setShowSessionManager(true)}
+          ragLoading={ragLoading}
         />
         <SessionManager
           sessions={sessions}
@@ -756,6 +816,7 @@ function InteractContent() {
                 messages={messages}
                 onSend={handleSend}
                 loading={loading}
+                ragLoading={ragLoading}
               />
             </div>
           </div>
@@ -799,6 +860,20 @@ function InteractContent() {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Debug 按钮 */}
+          <div className="glass-card p-3 sm:p-4 mt-3 sm:mt-4">
+            <button
+              onClick={() => {
+                setShowDebugPanel(true)
+                fetchDebugPrompt()
+              }}
+              className="w-full py-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors"
+            >
+              <Bug className="w-4 h-4" />
+              查看提示词
+            </button>
           </div>
 
           {/* 日记功能 */}
@@ -906,6 +981,100 @@ function InteractContent() {
         onClose={() => setShowSessionManager(false)}
         characterName={character.name}
       />
+
+      {/* Debug 提示词查看器 */}
+      {showDebugPanel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="glass-card w-full max-w-4xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <div>
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <Bug className="w-5 h-5" />
+                  提示词查看器
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  人设位置: {debugPromptData?.personaPosition || 'loading...'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchDebugPrompt}
+                  disabled={debugLoading}
+                  className="px-3 py-1.5 bg-purple-600/50 hover:bg-purple-600 rounded-lg text-sm transition-colors disabled:opacity-50"
+                >
+                  {debugLoading ? '加载中...' : '刷新'}
+                </button>
+                <button
+                  onClick={() => setShowDebugPanel(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Stats */}
+            {debugPromptData?.stats && (
+              <div className="flex gap-4 p-3 bg-white/5 border-b border-white/10 text-xs">
+                <span className="text-gray-400">
+                  总计: <span className="text-white">{debugPromptData.stats.total}</span>
+                </span>
+                <span className="text-blue-400">
+                  system: <span className="text-white">{debugPromptData.stats.system}</span>
+                </span>
+                <span className="text-green-400">
+                  user: <span className="text-white">{debugPromptData.stats.user}</span>
+                </span>
+                <span className="text-purple-400">
+                  assistant: <span className="text-white">{debugPromptData.stats.assistant}</span>
+                </span>
+              </div>
+            )}
+
+            {/* Messages List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {debugLoading ? (
+                <div className="text-center py-8 text-gray-400">
+                  <div className="animate-spin w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full mx-auto mb-4" />
+                  加载中...
+                </div>
+              ) : debugPromptData?.messages ? (
+                debugPromptData.messages.map((msg, index) => (
+                  <div key={index} className="border border-white/10 rounded-lg overflow-hidden">
+                    <div className={`px-3 py-1.5 text-xs font-medium ${
+                      msg.role === 'system' ? 'bg-blue-600/30 text-blue-200' :
+                      msg.role === 'user' ? 'bg-green-600/30 text-green-200' :
+                      'bg-purple-600/30 text-purple-200'
+                    }`}>
+                      {msg.role.toUpperCase()} #{index + 1}
+                    </div>
+                    <div className="p-3 bg-black/20">
+                      <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
+                        {msg.content}
+                      </pre>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  点击刷新获取提示词
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10">
+              <button
+                onClick={() => setShowDebugPanel(false)}
+                className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
